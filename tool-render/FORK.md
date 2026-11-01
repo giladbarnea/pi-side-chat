@@ -1,6 +1,6 @@
 ---
 description: Provenance and boundary for the overlay's vendored historical tool renderer
-last_updated: 2026-07-31
+last_updated: 2026-11-01T23-46
 ---
 # The overlay renders tool history itself
 
@@ -14,7 +14,7 @@ longer be registered.
 
 ## Sources
 
-- `../rich-tool-diff/` — `read`, `edit`, `write`, `grep`, `find`, `ls`.
+- [V-Stack, now Kendex](https://github.com/vanillagreencom/kendex/tree/main/pi-extensions/pi-tool-renderer/extensions/tool-renderer) — `read`, `edit`, `write`, `grep`, `find`, `ls`, originally copied through the former local curated extension. The local fork has been removed; this link identifies the upstream source, not a runtime dependency.
 - `/Users/giladbarnea/.pi/agent/extensions/bash-rich-highlight/index.ts` — `bash`.
 
 Both are **disabled** in committed `agent/settings.json`, while `pi-user-agents` is enabled.
