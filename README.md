@@ -61,9 +61,7 @@ The first preserves the session's knowledge before the context window fills, wit
 
 Every agent gets a row in a widget under the editor: status, task, model, turn count, tool uses, elapsed time, a one-cell context meter, and the last line of live activity.
 
-<a href="screenshots/below-editor-widget.png">
-  <img src="screenshots/below-editor-widget.png" width="100%" alt="The user agents widget under the editor, showing one finished agent and its latest output">
-</a>
+[![The user agents widget under the editor, showing one finished agent and its latest output](https://raw.githubusercontent.com/giladbarnea/pi-user-agents/main/screenshots/below-editor-widget.png)](https://raw.githubusercontent.com/giladbarnea/pi-user-agents/main/screenshots/below-editor-widget.png)
 
 <div align="center"><em>The widget sits under the editor and stays out of your way.</em></div>
 
@@ -71,9 +69,7 @@ Every agent gets a row in a widget under the editor: status, task, model, turn c
 
 Press `←` or `↓` from the editor to focus the widget. The selected row shows a short session ID and offers the same agent actions as the overlay. Press `Enter` to open the full conversation, streaming live and following the tail as it grows. Tool calls render as proper views — `read`, `edit`, `write`, `grep`, `find`, `ls`, and `bash` each get a dedicated format, everything else a readable generic one.
 
-<a href="screenshots/overlay.png">
-  <img src="screenshots/overlay.png" width="100%" alt="The agent overlay: a rendered bash call, its output, a todo update, and the final response, over the dimmed main conversation">
-</a>
+[![The agent overlay: a rendered bash call, its output, a todo update, and the final response, over the dimmed main conversation](https://raw.githubusercontent.com/giladbarnea/pi-user-agents/main/screenshots/overlay.png)](https://raw.githubusercontent.com/giladbarnea/pi-user-agents/main/screenshots/overlay.png)
 
 <div align="center"><em>The overlay, over a main conversation that never paused.</em></div>
 
