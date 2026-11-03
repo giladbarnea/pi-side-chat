@@ -2,6 +2,17 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+/** Run as a Pi process launched as `pi <launchArgs>`: the extension reads its launch options from process.argv. */
+export async function withLaunchArgs<T>(launchArgs: string[], run: () => Promise<T>): Promise<T> {
+	const previousArgv = process.argv;
+	process.argv = [previousArgv[0]!, "pi", ...launchArgs];
+	try {
+		return await run();
+	} finally {
+		process.argv = previousArgv;
+	}
+}
+
 /** Run with a throwaway Pi agent directory and project cwd, so session files never touch the real ones. */
 export async function withTemporaryAgentDir<T>(run: (cwd: string) => Promise<T>): Promise<T> {
 	const agentDirectory = mkdtempSync(join(tmpdir(), "pi-user-agents-agent-dir-"));

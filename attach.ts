@@ -6,9 +6,9 @@ import { herdrAgentName, insideHerdr, splitPane, startPi } from "./herdr.js";
 import { conversationFingerprint } from "./rebase.js";
 import {
 	assistantText,
-	buildChildResourceLoaderOptions,
 	createChildServices,
 	DISPATCH_PREAMBLES,
+	parentExtensionArgs,
 	parseForwardedArgs,
 	reportAgentFailure,
 	resolveToolOptions,
@@ -278,10 +278,7 @@ async function attachUserAgent(
 	// dispatch, or a /fork) restores pi defaults.
 	const record = readDispatchRecord(childSessionManager);
 	const dispatchArgs = parseForwardedArgs(record?.forwardedArgs ?? []);
-	const services = await createChildServices(
-		ctx,
-		buildChildResourceLoaderOptions(dispatchArgs, ctx.cwd),
-	);
+	const services = await createChildServices(ctx, record?.forwardedArgs ?? []);
 	// A non-empty session manager takes pi's resume path: messages, model, and thinking level
 	// are restored from the child's own file; tools and resources come from the dispatch record.
 	const { session, modelFallbackMessage } = await createAgentSessionFromServices({
@@ -332,9 +329,10 @@ async function attachUserAgent(
 
 /**
  * The herdr mechanism: attach a child session to a Pi in a new herdr pane instead of to this
- * process. The pane's Pi resumes the child's file with the dispatch record's options replayed as
- * CLI flags (see `forwardedArgsForPane`); the model and thinking level come from the file, as on
- * any resume. The file is resolved before the pane is split, so an agent without one costs no pane.
+ * process. The pane's Pi resumes the child's file with this Pi's launch extension options and the
+ * dispatch record's options as CLI flags (see `forwardedArgsForPane`); the model and thinking level
+ * come from the file, as on any resume. The file is resolved before the pane is split, so an agent
+ * without one costs no pane.
  */
 export function createHerdrDelivery(
 	getSessionContext: () => ExtensionCommandContext | undefined,
@@ -350,7 +348,12 @@ export function createHerdrDelivery(
 			)?.file;
 			if (!file) throw new Error("the agent has no session file yet (it has not answered)");
 			const record = readDispatchRecord(SessionManager.open(file));
-			const piArgs = [...forwardedArgsForPane(record?.forwardedArgs ?? []), "--session", file];
+			const piArgs = [
+				...parentExtensionArgs(),
+				...forwardedArgsForPane(record?.forwardedArgs ?? []),
+				"--session",
+				file,
+			];
 			const paneId = await splitPane(ctx.cwd);
 			return { paneId, start: () => startPi(paneId, herdrAgentName(agent.sessionId), piArgs) };
 		},

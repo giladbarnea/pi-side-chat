@@ -147,10 +147,7 @@ async function startUserAgent(
 	}
 
 	// The pane's Pi loads its own resources; only a background child needs them here.
-	const services = await createChildServices(
-		ctx,
-		buildChildResourceLoaderOptions(parsedForwardedArgs, ctx.cwd),
-	);
+	const services = await createChildServices(ctx, parsed.forwardedArgs);
 	runningAgents.add(runningAgent);
 	logSteering(runningAgent.id, "agent-created", { command, taskLength: parsed.task.length });
 	if (ctx.hasUI) {
@@ -204,6 +201,7 @@ async function dispatchToHerdrPane(
 	// Explicit on the CLI too: an isolated child's file has no messages, and pi then takes the
 	// flags over the file.
 	const paneId = await openPiInHerdrPane(ctx.cwd, herdrAgentName(runningAgent.sessionId), [
+		...parentExtensionArgs(),
 		...forwardedArgsForPane(parsed.forwardedArgs),
 		"--provider",
 		model.provider,
@@ -367,22 +365,44 @@ type ForwardedOptions = ChildToolOptions & {
 	thinkingLevel?: ThinkingLevel;
 };
 
-/** The cwd-bound services for one child session; the parent's ModelRuntime rides along (see INTERNALS). */
+/**
+ * The cwd-bound services for one child session; the parent's ModelRuntime rides along (see INTERNALS).
+ * Resources come from the parent's launch extension options, then the dispatch's forwarded pi options.
+ */
 export function createChildServices(
 	ctx: ExtensionCommandContext,
-	resourceLoaderOptions?: ChildResourceLoaderOptions,
+	forwardedArgs: readonly string[],
 ): Promise<AgentSessionServices> {
 	const agentDir = getAgentDir();
 	const settingsManager = SettingsManager.create(ctx.cwd, agentDir, {
 		projectTrusted: ctx.isProjectTrusted(),
 	});
+	const resourceArgs = parseForwardedArgs([...parentExtensionArgs(), ...forwardedArgs]);
 	return createAgentSessionServices({
 		cwd: ctx.cwd,
 		agentDir,
 		settingsManager,
 		modelRuntime: parentModelRuntime(ctx),
-		resourceLoaderOptions,
+		resourceLoaderOptions: buildChildResourceLoaderOptions(resourceArgs, ctx.cwd),
 	});
+}
+
+/**
+ * The extension options this Pi process was launched with, as pi CLI tokens. Pi keeps them out of
+ * settings, so a child that loads extensions from settings alone misses the parent's `-e` extensions.
+ *
+ * @example parentExtensionArgs(["--mode", "rpc", "-ne", "-e", "./a.ts", "-e", "npm:b", "hi"], "/work") // ["--no-extensions", "--extension", "/work/a.ts", "--extension", "npm:b"]
+ */
+export function parentExtensionArgs(
+	launchArgs: readonly string[] = process.argv.slice(2),
+	launchCwd: string = process.cwd(),
+): string[] {
+	const launch = parseArgs([...launchArgs]);
+	const extensions = resolveResourcePaths(launch.extensions ?? [], launchCwd).flatMap((source) => [
+		"--extension",
+		source,
+	]);
+	return launch.noExtensions ? ["--no-extensions", ...extensions] : extensions;
 }
 
 /**
@@ -532,6 +552,8 @@ export function buildChildResourceLoaderOptions(
 /** Resolve resource paths to absolute against the session cwd, matching how the CLI hands them to the loader. */
 function resolveResourcePaths(values: string[], cwd: string): string[] {
 	return values.map((value) => {
+		// Package sources such as npm:<pkg> are not paths; pi resolves them itself.
+		if (/^(npm|git|github|https?|ssh|builtin):/.test(value)) return value;
 		if (value === "~" || value.startsWith("~/")) return path.join(os.homedir(), value.slice(1));
 		return path.isAbsolute(value) ? value : path.resolve(cwd, value);
 	});

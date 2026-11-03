@@ -15,6 +15,7 @@ import {
 	flushSessionFile,
 	handleAgentCommand,
 	PANE_DISPATCH_PREAMBLE,
+	parentExtensionArgs,
 	parseAgentCommand,
 	parseForwardedArgs,
 	persistMessages,
@@ -35,7 +36,7 @@ import type {
 } from "../shared.ts";
 import { DISPATCH_ENTRY_TYPE } from "../shared.ts";
 import { UserAgentWidget } from "../widget.ts";
-import { withTemporaryAgentDir } from "./agent-dir.ts";
+import { withLaunchArgs, withTemporaryAgentDir } from "./agent-dir.ts";
 import { fakeHerdr, insideFakeHerdrPane } from "./herdr-fake.ts";
 
 /** The slice of RunningAgent that waitForInstruction reads and writes. */
@@ -608,6 +609,8 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 					"--no-themes",
 					"--extension",
 					"./extensions/foo.ts",
+					"--extension",
+					"npm:@scope/bar",
 					"--skill",
 					"./skills/foo",
 					"--prompt-template",
@@ -620,11 +623,21 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 		).toEqual({
 			noContextFiles: true,
 			noThemes: true,
-			additionalExtensionPaths: ["/tmp/project/extensions/foo.ts"],
+			additionalExtensionPaths: ["/tmp/project/extensions/foo.ts", "npm:@scope/bar"],
 			additionalSkillPaths: ["/tmp/project/skills/foo"],
 			additionalPromptTemplatePaths: ["/tmp/project/prompts/foo.md"],
 			appendSystemPrompt: ["be terse"],
 		});
+	});
+
+	test("carries the parent's launch extension options as absolute pi tokens", () => {
+		expect(
+			parentExtensionArgs(
+				["--mode", "rpc", "--session", "/s.jsonl", "-ne", "-e", "./ext.ts", "--extension", "git:github.com/a/b", "hi"],
+				"/launch",
+			),
+		).toEqual(["--no-extensions", "--extension", "/launch/ext.ts", "--extension", "git:github.com/a/b"]);
+		expect(parentExtensionArgs(["--thinking", "high", "explain"], "/launch")).toEqual([]);
 	});
 
 	test("throws on a pi parser error", () => {
@@ -651,13 +664,9 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 				{ input: "-xt bash", activeTools: ["read", "edit", "write"] },
 				{ input: "-nt", activeTools: [] },
 			]) {
-				const parsed = parseForwardedArgs(
-					parseAgentCommand(`${input} --no-extensions review it`, "agent").forwardedArgs,
-				);
-				const services = await createChildServices(
-					ctx,
-					buildChildResourceLoaderOptions(parsed, cwd),
-				);
+				const forwardedArgs = parseAgentCommand(`${input} --no-extensions review it`, "agent").forwardedArgs;
+				const parsed = parseForwardedArgs(forwardedArgs);
+				const services = await createChildServices(ctx, forwardedArgs);
 				const { session } = await createAgentSessionFromServices({
 					services,
 					sessionManager: SessionManager.inMemory(cwd),
@@ -709,13 +718,9 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 					] as AgentMessage[],
 					[],
 				);
-				const parsed = parseForwardedArgs(
-					parseAgentCommand(`${input} --no-extensions review it`, "agent").forwardedArgs,
-				);
-				const services = await createChildServices(
-					ctx,
-					buildChildResourceLoaderOptions(parsed, cwd),
-				);
+				const forwardedArgs = parseAgentCommand(`${input} --no-extensions review it`, "agent").forwardedArgs;
+				const parsed = parseForwardedArgs(forwardedArgs);
+				const services = await createChildServices(ctx, forwardedArgs);
 				const { session } = await createAgentSessionFromServices({
 					services,
 					sessionManager: SessionManager.open(flushSessionFile(child)),
@@ -1418,7 +1423,7 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 			const widget = new UserAgentWidget(runningAgents, ...noopWidgetDependencies);
 			const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w1:p2" });
 			try {
-				await insideFakeHerdrPane("w1:p1", () =>
+				await withLaunchArgs(["-e", "/opt/extensions/launch.ts"], () => insideFakeHerdrPane("w1:p1", () =>
 					handleAgentCommand(
 						fakePi,
 						runningAgents,
@@ -1430,7 +1435,7 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 						"/agent --tools read,grep --no-session -h audit the migration",
 						ctx,
 					),
-				);
+				));
 
 				expect(notifications.filter(({ level }) => level === "error")).toEqual([]);
 				const start = fake.calls.find((call) => call[0] === "agent" && call[1] === "start");
@@ -1445,6 +1450,8 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 					"--pane",
 					"w1:p2",
 					"--",
+					"--extension",
+					"/opt/extensions/launch.ts",
 					"--tools",
 					"read,grep",
 					"--provider",

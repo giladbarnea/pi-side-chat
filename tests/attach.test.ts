@@ -27,7 +27,7 @@ import type {
 } from "../shared.ts";
 import { DISPATCH_ENTRY_TYPE } from "../shared.ts";
 import { UserAgentWidget } from "../widget.ts";
-import { withTemporaryAgentDir } from "./agent-dir.ts";
+import { withLaunchArgs, withTemporaryAgentDir } from "./agent-dir.ts";
 import { fakeHerdr, insideFakeHerdrPane } from "./herdr-fake.ts";
 
 /** A widget under test that must never rebase. */
@@ -866,7 +866,7 @@ describe("createHerdrDelivery — attach a child session to a Pi in a new herdr 
 		await insideFakeHerdrPane("w1:p1", async () => expect(delivery.available()).toBe(true));
 	});
 
-	test("splits a pane for the child, then resumes its file there with the dispatch options minus model, provider, thinking, and inert options", async () => {
+	test("splits a pane for the child, then resumes its file there with this Pi's launch extensions and the dispatch options minus model, provider, thinking, and inert options", async () => {
 		await withTemporaryAgentDir(async (cwd) => {
 			const main = SessionManager.create(cwd);
 			const child = SessionManager.create(cwd, undefined, { parentSession: main.getSessionFile() });
@@ -891,8 +891,8 @@ describe("createHerdrDelivery — attach a child session to a Pi in a new herdr 
 			const fake = fakeHerdr({ layout: wideCaller, paneId: "w1:p2" });
 			try {
 				const delivery = createHerdrDelivery(() => ({ cwd }) as ExtensionCommandContext);
-				const pane = await insideFakeHerdrPane("w1:p1", () =>
-					delivery.split({ sessionId: child.getSessionId() } as RunningAgent),
+				const pane = await withLaunchArgs(["--no-extensions", "-e", "/opt/extensions/launch.ts"], () =>
+					insideFakeHerdrPane("w1:p1", () => delivery.split({ sessionId: child.getSessionId() } as RunningAgent)),
 				);
 
 				expect(pane.paneId).toBe("w1:p2");
@@ -901,7 +901,7 @@ describe("createHerdrDelivery — attach a child session to a Pi in a new herdr 
 					"Expected the pane split but no pi started before start()",
 				).toEqual([["pane", "layout"], ["pane", "split"]]);
 				await pane.start();
-				expect(fake.calls.at(-1), "Expected the pane's pi to resume the file with tools but not the model").toEqual([
+				expect(fake.calls.at(-1), "Expected the pane's pi to resume the file with the launch extensions and tools but not the model").toEqual([
 					"agent",
 					"start",
 					`agent-${child.getSessionId().slice(0, 13)}`,
@@ -910,6 +910,9 @@ describe("createHerdrDelivery — attach a child session to a Pi in a new herdr 
 					"--pane",
 					"w1:p2",
 					"--",
+					"--no-extensions",
+					"--extension",
+					"/opt/extensions/launch.ts",
 					"--tools",
 					"read,grep",
 					"--session",
