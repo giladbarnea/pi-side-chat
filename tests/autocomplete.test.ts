@@ -140,6 +140,53 @@ describe("agent command editor autocomplete", () => {
 		);
 	});
 
+	test("the cursor inside the prompt keeps the menu closed, so Enter submits the line unchanged", async () => {
+		const prompt = "explain it";
+		const expectClosedThenSubmit = async (
+			harness: Awaited<ReturnType<typeof createEditorHarness>>,
+			expected: string,
+		): Promise<void> => {
+			const submitted: string[] = [];
+			harness.editor.onSubmit = (text) => submitted.push(text);
+			await new Promise<void>((resolve) => setTimeout(resolve, 20));
+			await harness.waitForAutocompleteToRemainHidden();
+			harness.press("\x1b[C");
+			await harness.waitForAutocompleteToRemainHidden();
+			harness.press("\r");
+			assert.deepEqual(submitted, [expected], "Expected Enter to submit the unchanged line");
+		};
+
+		const typedOption = await createEditorHarness();
+		typedOption.type(`/agent ${prompt}`);
+		typedOption.moveCursorLeft(prompt.length);
+		typedOption.type("-i ");
+		await expectClosedThenSubmit(typedOption, `/agent -i ${prompt}`);
+
+		const acceptedOption = await createEditorHarness();
+		acceptedOption.type(`/agent ${prompt}`);
+		acceptedOption.moveCursorLeft(prompt.length + 1);
+		acceptedOption.type(" -i");
+		await acceptedOption.waitForRender((rendered) => rendered.includes("Start without"));
+		acceptedOption.press("\r");
+		assert.equal(acceptedOption.editor.getCursor().col, "/agent -i ".length);
+		await expectClosedThenSubmit(acceptedOption, `/agent -i ${prompt}`);
+
+		const acceptedValue = await createEditorHarness();
+		acceptedValue.type(`/agent --thi ${prompt}`);
+		acceptedValue.moveCursorLeft(prompt.length + 1);
+		acceptedValue.press("\t");
+		await acceptedValue.waitForRender((rendered) => rendered.includes("off"));
+		acceptedValue.press("\r");
+		assert.equal(acceptedValue.editor.getCursor().col, "/agent --thinking off ".length);
+		await expectClosedThenSubmit(acceptedValue, `/agent --thinking off ${prompt}`);
+
+		const editedPrompt = await createEditorHarness();
+		editedPrompt.type(`/agent -i x${prompt}`);
+		editedPrompt.moveCursorLeft(prompt.length);
+		editedPrompt.press("\x7f");
+		await expectClosedThenSubmit(editedPrompt, `/agent -i ${prompt}`);
+	});
+
 	test("accepting --thinking chains into its value menu and completes with one trailing space", async () => {
 		const harness = await createEditorHarness();
 

@@ -590,6 +590,10 @@ function analyzeArgumentCursor(
 					usedSemanticIds,
 				);
 			}
+			// A cursor on the first character of the prose is inside the prompt, not in an option slot.
+			const nextToken = /^\S+/.exec(args.slice(position))?.[0];
+			if (position === cursor && nextToken !== undefined && !OPTION_BY_NAME.has(nextToken))
+				return undefined;
 			return optionExpectation(command, "", cursor, cursor, usedSemanticIds);
 		}
 
