@@ -53,7 +53,8 @@ export type DispatchBoundary = {
 /**
  * Split a child's resolved context at its dispatch boundary — the first user message carrying
  * a dispatch preamble. Undefined when no message carries one (a /fork child, or a child whose
- * own compaction summarized the boundary away).
+ * own compaction summarized the boundary away). The system messages right before that prompt are
+ * the child's own: Pi persists its prompt and tool changes there on the child's first request.
  */
 export function splitAtDispatchBoundary(
 	messages: readonly AgentMessage[],
@@ -63,9 +64,11 @@ export function splitAtDispatchBoundary(
 		const text = userMessageText(message);
 		const preamble = DISPATCH_PREAMBLES.find((candidate) => text.startsWith(candidate));
 		if (preamble === undefined) continue;
+		let conversationStart = index;
+		while (messages[conversationStart - 1]?.role === "system") conversationStart -= 1;
 		return {
-			base: messages.slice(0, index),
-			conversation: messages.slice(index),
+			base: messages.slice(0, conversationStart),
+			conversation: messages.slice(conversationStart),
 			task: text.slice(preamble.length),
 		};
 	}

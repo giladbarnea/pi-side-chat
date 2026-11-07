@@ -73,6 +73,19 @@ describe("splitAtDispatchBoundary — recover a child's own conversation from it
 		expect(boundary?.task).toBe("review the migration");
 	});
 
+	test("the system message Pi persists before the dispatch prompt is the child's own, not inherited base", () => {
+		const childPromptPatch = {
+			role: "system",
+			content: "",
+			sections: { tools: "<tools>the child's tools</tools>" },
+			timestamp: 3,
+		} as AgentMessage;
+		const boundary = splitAtDispatchBoundary([...inherited, childPromptPatch, ...dispatched]);
+
+		expect(boundary?.base, "Expected the base to equal main's context at dispatch").toEqual(inherited);
+		expect(boundary?.conversation).toEqual([childPromptPatch, ...dispatched]);
+	});
+
 	test("an isolated child starts at the boundary: empty base, whole context as conversation", () => {
 		const boundary = splitAtDispatchBoundary(dispatched);
 
