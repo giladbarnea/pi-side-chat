@@ -187,6 +187,72 @@ describe("agent command editor autocomplete", () => {
 		await expectClosedThenSubmit(editedPrompt, `/agent -i ${prompt}`);
 	});
 
+	for (const [key, input] of [
+		["Alt+F", "\x1bf"],
+		["Ctrl+Right", "\x1b[1;5C"],
+		["End", "\x1b[F"],
+	]) {
+		test(`${key} closes an option menu when jumping into prose, so Enter submits unchanged`, async () => {
+			const harness = await createEditorHarness();
+			const submitted: string[] = [];
+			harness.editor.onSubmit = (text) => submitted.push(text);
+			harness.type("/agent  explain it");
+			harness.moveCursorLeft(" explain it".length);
+			harness.type("--t");
+			await harness.waitForRender((rendered) => rendered.includes("--thinking <level>"));
+			assert.equal(harness.editor.getCursor().col, "/agent --t".length);
+
+			harness.press(input);
+			assert.ok(harness.editor.getCursor().col > "/agent --t ".length);
+			const menuAfterJump = harness.editor.isShowingAutocomplete();
+			harness.press("\r");
+
+			assert.deepEqual(
+				{ menuAfterJump, submitted, remainingText: harness.editor.getText() },
+				{ menuAfterJump: false, submitted: ["/agent --t explain it"], remainingText: "" },
+				`Expected ${key} to dismiss the stale option menu before immediate Enter`,
+			);
+			await harness.waitForAutocompleteToRemainHidden();
+		});
+	}
+
+	test("End within an option keeps completion and value chaining available", async () => {
+		const harness = await createEditorHarness();
+		const submitted: string[] = [];
+		harness.editor.onSubmit = (text) => submitted.push(text);
+		harness.type("/agent --thi");
+		await harness.waitForRender((rendered) => rendered.includes("--thinking <level>"));
+		harness.moveCursorLeft(1);
+		harness.press("\x1b[F");
+		harness.press("\r");
+		assert.equal(harness.editor.getText(), "/agent --thinking ");
+		await harness.waitForRender((rendered) => rendered.includes("off"));
+		harness.press("\r");
+		assert.equal(harness.editor.getText(), "/agent --thinking off ");
+		assert.deepEqual(submitted, [], "Expected Enter to accept the option and value, not submit");
+	});
+
+	test("End leaves native file completion in the prompt available", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "pi-user-agents-prompt-file-"));
+		try {
+			await writeFile(join(cwd, "fixture.ts"), "export {};\n");
+			await writeFile(join(cwd, "fixture.txt"), "Fixture\n");
+			const harness = await createEditorHarness(cwd);
+			const submitted: string[] = [];
+			harness.editor.onSubmit = (text) => submitted.push(text);
+			harness.type("/agent explain ./fix");
+			harness.press("\t");
+			await harness.waitForRender((rendered) => rendered.includes("fixture.ts"));
+			harness.moveCursorLeft(1);
+			harness.press("\x1b[F");
+			harness.press("\r");
+			assert.equal(harness.editor.getText(), "/agent explain ./fixture.ts");
+			assert.deepEqual(submitted, [], "Expected native file completion, not submission");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
 	test("accepting --thinking chains into its value menu and completes with one trailing space", async () => {
 		const harness = await createEditorHarness();
 

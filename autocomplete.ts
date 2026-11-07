@@ -29,6 +29,7 @@ type CompletionTool = { name: string; description: string };
 type CompletionResourceCommand = ReturnType<ExtensionAPI["getCommands"]>[number];
 type ModelScopeSource = Pick<ExtensionContext["modelRegistry"], "getAvailable">;
 type AutocompleteRuntimeEditor = EditorComponent & {
+	cancelAutocomplete?: () => void;
 	forceFileAutocomplete?: (explicitTab?: boolean) => void;
 	getCursor?: () => { line: number; col: number };
 	isShowingAutocomplete?: () => boolean;
@@ -449,15 +450,19 @@ function decorateAutocompleteEditor<T extends EditorComponent>(
 ): T {
 	const runtimeEditor = editor as DecoratedEditor;
 	if (runtimeEditor[DECORATED_EDITOR]) return editor;
+	const cancelAutocomplete = runtimeEditor.cancelAutocomplete;
+	if (typeof cancelAutocomplete !== "function")
+		throw new Error("pi-user-agents autocomplete requires editor.cancelAutocomplete()");
 	const handleInput = editor.handleInput.bind(editor);
 	editor.handleInput = (data) => {
 		const getCursor = runtimeEditor.getCursor;
 		if (typeof getCursor !== "function")
 			throw new Error("pi-user-agents autocomplete requires editor.getCursor()");
 		const beforeCursor = getCursor.call(editor);
+		const beforeText = editor.getText();
 		const beforeExpectation =
 			beforeCursor.line === 0
-				? analyzeAgentEditorInput(editor.getText(), beforeCursor.col)
+				? analyzeAgentEditorInput(beforeText, beforeCursor.col)
 				: undefined;
 		const wasShowingAutocomplete = runtimeEditor.isShowingAutocomplete?.call(editor) ?? false;
 		const printableCharacter =
@@ -466,8 +471,12 @@ function decorateAutocompleteEditor<T extends EditorComponent>(
 		handleInput(data);
 
 		const cursor = getCursor.call(editor);
+		const expectation =
+			cursor.line === 0 ? analyzeAgentEditorInput(editor.getText(), cursor.col) : undefined;
+		// Pi's word and line jumps do not refresh an open menu. Dismiss it before the next key.
+		if (wasShowingAutocomplete && beforeExpectation && !expectation && editor.getText() === beforeText)
+			cancelAutocomplete.call(editor);
 		if (cursor.line !== 0) return;
-		const expectation = analyzeAgentEditorInput(editor.getText(), cursor.col);
 		const typedOptionDash = printableCharacter === "-" && expectation?.kind === "option";
 		const completionAcceptance = isCompletionAcceptance(data);
 		const typedEagerValueBoundary =
