@@ -207,7 +207,7 @@ export class AgentViewer implements Component {
 		}
 		if (this.composer) {
 			this.confirmation.cancel();
-			this.composer.handleInput(data);
+			if (!this.scrollByNavigationKey(data)) this.composer.handleInput(data);
 			this.tui.requestRender();
 			return;
 		}
@@ -259,22 +259,39 @@ export class AgentViewer implements Component {
 			this.requestHerdr();
 			return;
 		}
+		if (this.scrollByNavigationKey(data)) return;
+		if (matchesKey(data, "k")) this.scrollBy(-1);
+		else if (matchesKey(data, "j")) this.scrollBy(1);
+		else if (matchesKey(data, "home")) this.scrollBy(-Infinity);
+		else if (matchesKey(data, "end")) this.scrollBy(Infinity);
+	}
+
+	/**
+	 * Arrow and page keys scroll the transcript in every overlay state. The single-line steer
+	 * editor has no use for them, while letters and Home/End stay with it.
+	 */
+	private scrollByNavigationKey(data: string): boolean {
 		const viewport = this.viewportHeight();
+		const step = matchesKey(data, "up")
+			? -1
+			: matchesKey(data, "down")
+				? 1
+				: matchesKey(data, "pageUp") || matchesKey(data, "shift+up")
+					? -viewport
+					: matchesKey(data, "pageDown") || matchesKey(data, "shift+down")
+						? viewport
+						: undefined;
+		if (step === undefined) return false;
+		this.scrollBy(step);
+		return true;
+	}
+
+	private scrollBy(lines: number): void {
 		const maxScroll = Math.max(
 			0,
-			this.contentLines(this.innerWidth(this.lastWidth)).length - viewport,
+			this.contentLines(this.innerWidth(this.lastWidth)).length - this.viewportHeight(),
 		);
-		if (matchesKey(data, "up") || matchesKey(data, "k"))
-			this.scrollOffset = Math.max(0, this.scrollOffset - 1);
-		else if (matchesKey(data, "down") || matchesKey(data, "j"))
-			this.scrollOffset = Math.min(maxScroll, this.scrollOffset + 1);
-		else if (matchesKey(data, "pageUp") || matchesKey(data, "shift+up"))
-			this.scrollOffset = Math.max(0, this.scrollOffset - viewport);
-		else if (matchesKey(data, "pageDown") || matchesKey(data, "shift+down"))
-			this.scrollOffset = Math.min(maxScroll, this.scrollOffset + viewport);
-		else if (matchesKey(data, "home")) this.scrollOffset = 0;
-		else if (matchesKey(data, "end")) this.scrollOffset = maxScroll;
-		else return;
+		this.scrollOffset = Math.min(maxScroll, Math.max(0, this.scrollOffset + lines));
 		this.autoScroll = this.scrollOffset >= maxScroll;
 	}
 

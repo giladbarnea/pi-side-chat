@@ -313,88 +313,7 @@ describe("UserAgentWidget steering", () => {
 	});
 
 	test("resumes following the transcript tail when steering is committed", () => {
-		const messages = Array.from({ length: 12 }, (_, index) => ({
-			role: "user",
-			content: [{ type: "text", text: `message ${index}` }],
-			timestamp: index,
-		})) as AgentMessage[];
-		const steeredMessages: string[] = [];
-		const session = {
-			isStreaming: true,
-			agent: { state: { messages } },
-			steer: async (message: string) => {
-				steeredMessages.push(message);
-			},
-			getContextUsage: () => undefined,
-		} as unknown as NonNullable<RunningAgent["session"]>;
-		const runningAgent = {
-			id: "user-1",
-			sessionId: "session-1",
-			command: "agent",
-			inheritedContext: true,
-			model: "provider/model",
-			modelLabel: "model",
-			task: "plan the migration",
-			invocation: "/agent plan the migration",
-			notifyMainAgent: false,
-			dispatchBaseFingerprint: "[]",
-			status: "running",
-			startedAt: Date.now(),
-			turnStartedAt: Date.now(),
-			activeTools: new Map<string, string>(),
-			toolUses: 0,
-			turnCount: 0,
-			responseText: "",
-			conversationMessages: messages,
-			session,
-			finished: Promise.resolve(),
-		} satisfies RunningAgent;
-		const squashedResults: AgentResultMessage[] = [];
-		const widget = new UserAgentWidget(
-			new Set([runningAgent]),
-			(message) => squashedResults.push(message),
-			() => undefined,
-			noRebase,
-			noHerdr,
-		);
-		const theme = {
-			fg: (_color: string, text: string) => text,
-			bold: (text: string) => text,
-			italic: (text: string) => text,
-			underline: (text: string) => text,
-			strikethrough: (text: string) => text,
-		} as unknown as Theme;
-		const tui = {
-			terminal: { columns: 120, rows: 20 },
-			requestRender: () => undefined,
-		} as unknown as TUI;
-		let terminalInput = (_data: string): unknown => undefined;
-		let viewer: Component | undefined;
-		const ui = {
-			onTerminalInput: (handler: typeof terminalInput) => {
-				terminalInput = handler;
-				return () => undefined;
-			},
-			getEditorText: () => "",
-			setWidget: () => undefined,
-			custom: (
-				factory: (
-					tui: TUI,
-					theme: Theme,
-					keybindings: unknown,
-					done: (result: undefined) => void,
-				) => Component,
-			) => {
-				viewer = factory(tui, theme, undefined, () => undefined);
-				return new Promise<undefined>(() => undefined);
-			},
-		} as unknown as UIContext;
-
-		widget.setUI(ui);
-		widget.update();
-		terminalInput("\x1b[B");
-		terminalInput("\r");
-		if (!viewer) throw new Error("Agent viewer did not open");
+		const { viewer, runningAgent, steeredMessages, squashedResults } = openStreamingViewer();
 
 		expect(viewer.render(80).join("\n")).toContain("message 11");
 		expect(viewer.render(80).join("\n")).not.toContain("s squash");
@@ -413,7 +332,127 @@ describe("UserAgentWidget steering", () => {
 		expect(rendered).toContain("message 11");
 		expect(rendered).not.toContain("message 0");
 	});
+
+	test("up/down and page keys scroll the transcript while the steer editor is open", () => {
+		const { viewer, steeredMessages } = openStreamingViewer();
+		const render = () => viewer.render(80).join("\n");
+
+		viewer.handleInput?.("\r");
+		for (const character of "abc") viewer.handleInput?.(character);
+		expect(render()).toContain("✎ steer");
+		expect(render()).toContain("message 11");
+
+		for (let press = 0; press < 3; press += 1) viewer.handleInput?.("\x1b[A");
+		expect(render(), "Expected ↑ to scroll the transcript while steering").not.toContain("message 11");
+		for (let press = 0; press < 3; press += 1) viewer.handleInput?.("\x1b[B");
+		expect(render(), "Expected ↓ to scroll back while steering").toContain("message 11");
+
+		viewer.handleInput?.("\x1b[5~");
+		expect(render(), "Expected PgUp to scroll the transcript while steering").not.toContain("message 11");
+		viewer.handleInput?.("\x1b[6~");
+		expect(render(), "Expected PgDn to scroll back while steering").toContain("message 11");
+
+		expect(render(), "Expected scrolling to leave the steer editor open with its text").toContain("✎ steer");
+		expect(render()).toContain("> abc");
+		viewer.handleInput?.("\r");
+		expect(steeredMessages).toEqual(["abc"]);
+		expect(render()).not.toContain("✎ steer");
+	});
 });
+
+type StreamingViewer = {
+	viewer: Component;
+	runningAgent: RunningAgent;
+	steeredMessages: string[];
+	squashedResults: AgentResultMessage[];
+};
+
+/** Opens the overlay on a streaming agent whose 12 user messages overflow a 20-row terminal. */
+function openStreamingViewer(): StreamingViewer {
+	const messages = Array.from({ length: 12 }, (_, index) => ({
+		role: "user",
+		content: [{ type: "text", text: `message ${index}` }],
+		timestamp: index,
+	})) as AgentMessage[];
+	const steeredMessages: string[] = [];
+	const session = {
+		isStreaming: true,
+		agent: { state: { messages } },
+		steer: async (message: string) => {
+			steeredMessages.push(message);
+		},
+		getContextUsage: () => undefined,
+	} as unknown as NonNullable<RunningAgent["session"]>;
+	const runningAgent = {
+		id: "user-1",
+		sessionId: "session-1",
+		command: "agent",
+		inheritedContext: true,
+		model: "provider/model",
+		modelLabel: "model",
+		task: "plan the migration",
+		invocation: "/agent plan the migration",
+		notifyMainAgent: false,
+		dispatchBaseFingerprint: "[]",
+		status: "running",
+		startedAt: Date.now(),
+		turnStartedAt: Date.now(),
+		activeTools: new Map<string, string>(),
+		toolUses: 0,
+		turnCount: 0,
+		responseText: "",
+		conversationMessages: messages,
+		session,
+		finished: Promise.resolve(),
+	} satisfies RunningAgent;
+	const squashedResults: AgentResultMessage[] = [];
+	const widget = new UserAgentWidget(
+		new Set([runningAgent]),
+		(message) => squashedResults.push(message),
+		() => undefined,
+		noRebase,
+		noHerdr,
+	);
+	const theme = {
+		fg: (_color: string, text: string) => text,
+		bold: (text: string) => text,
+		italic: (text: string) => text,
+		underline: (text: string) => text,
+		strikethrough: (text: string) => text,
+	} as unknown as Theme;
+	const tui = {
+		terminal: { columns: 120, rows: 20 },
+		requestRender: () => undefined,
+	} as unknown as TUI;
+	let terminalInput = (_data: string): unknown => undefined;
+	let viewer: Component | undefined;
+	const ui = {
+		onTerminalInput: (handler: typeof terminalInput) => {
+			terminalInput = handler;
+			return () => undefined;
+		},
+		getEditorText: () => "",
+		setWidget: () => undefined,
+		custom: (
+			factory: (
+				tui: TUI,
+				theme: Theme,
+				keybindings: unknown,
+				done: (result: undefined) => void,
+			) => Component,
+		) => {
+			viewer = factory(tui, theme, undefined, () => undefined);
+			return new Promise<undefined>(() => undefined);
+		},
+	} as unknown as UIContext;
+
+	widget.setUI(ui);
+	widget.update();
+	terminalInput("\x1b[B");
+	terminalInput("\r");
+	if (!viewer) throw new Error("Agent viewer did not open");
+	return { viewer, runningAgent, steeredMessages, squashedResults };
+}
 
 describe("UserAgentWidget completed overlay", () => {
 	test("keeps the agent on Esc and detaches it on d d, announcing its session", async () => {
