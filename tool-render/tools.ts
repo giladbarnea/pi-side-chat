@@ -284,7 +284,8 @@ type ParsedBashResult = {
 
 const EXIT_PATTERN = /\n*Command exited with code (\d+)\s*$/;
 const ABORT_PATTERN = /\n*Command aborted\s*$/;
-const TIMEOUT_PATTERN = /\n*Command timed out after (\d+) seconds\s*$/;
+// Since Pi 1.5.1 a background writer that outlives its shell adds one sentence after the seconds.
+const TIMEOUT_PATTERN = /\n*Command timed out after (\d+) seconds(?:\. [^\n]*)?\s*$/;
 const TRUNCATION_FOOTER_PATTERN = /\n*\[Showing [^\]]*\]\s*$/;
 
 /** Pull the trailing status and truncation footers out of Pi's stored bash output. */
@@ -292,9 +293,11 @@ export function parseBashResult(result: ToolResultLike): ParsedBashResult {
 	let text = textContent(result).replace(/\s+$/, "");
 	let status: BashStatus = { kind: "ok" };
 
-	const exitMatch = EXIT_PATTERN.exec(text);
-	const abortMatch = exitMatch ? null : ABORT_PATTERN.exec(text);
-	const timeoutMatch = exitMatch || abortMatch ? null : TIMEOUT_PATTERN.exec(text);
+	// Pi attaches a status footer only to failed results; a successful result's last line is output.
+	const statusSource = result.isError ? text : "";
+	const exitMatch = EXIT_PATTERN.exec(statusSource);
+	const abortMatch = exitMatch ? null : ABORT_PATTERN.exec(statusSource);
+	const timeoutMatch = exitMatch || abortMatch ? null : TIMEOUT_PATTERN.exec(statusSource);
 	if (exitMatch) {
 		const code = Number.parseInt(exitMatch[1]!, 10);
 		status = code === 0 ? { kind: "ok" } : { kind: "exit", code };

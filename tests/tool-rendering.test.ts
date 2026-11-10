@@ -627,6 +627,58 @@ describe("overlay tool rendering — failures read as failures", () => {
 		expect(rendered).toContain("oldText not found");
 		expect(rendered).not.toContain("applied");
 	});
+
+	test.each([
+		["Pi 1.5.0 and earlier", "Command timed out after 3 seconds", "✗ timeout 3s"],
+		[
+			"Pi 1.5.1 and later, background writer",
+			"Command timed out after 1 seconds. The shell exited with code 0 after 0 seconds, but background processes it started kept writing output until the timeout.",
+			"✗ timeout 1s",
+		],
+	])("a timed-out bash call reads as a timeout (%s) and its footer leaves the body", (_label, footer, caption) => {
+		const rendered = buildHarness([
+			assistantCalls({ id: "c", name: "bash", arguments: { command: "npm run dev", timeout: 1 } }),
+			toolResult({ toolCallId: "c", toolName: "bash", text: `server listening\n\n${footer}`, isError: true }),
+		]).text();
+
+		expect(rendered).toContain(caption);
+		expect(rendered).not.toContain("✗ failed");
+		expect(rendered).toContain("server listening");
+		expect(rendered, "Expected the timeout footer out of the displayed body").not.toContain("Command timed out");
+	});
+
+	test("a successful bash call whose output ends in Pi's timeout sentence stays a success and keeps that line", () => {
+		const line =
+			"Command timed out after 1 seconds. The shell exited with code 0 after 0 seconds, but background processes it started kept writing output until the timeout.";
+		const rendered = buildHarness([
+			assistantCalls({ id: "c", name: "bash", arguments: { command: "tail -1 timeout.log" } }),
+			toolResult({ toolCallId: "c", toolName: "bash", text: line }),
+		]).text();
+
+		expect(rendered).not.toContain("✗");
+		expect(rendered, "Expected the successful output line to stay in the body").toContain("Command timed out after 1 seconds");
+	});
+
+	test("Pi's own bash tool timing out on a background writer reads as a timeout", async () => {
+		const { createBashToolDefinition, SessionManager } = await import("@earendil-works/pi-coding-agent");
+		const bash = createBashToolDefinition(process.cwd());
+		const args = { command: "(while true; do echo tick; sleep 0.02; done) & exit 0", timeout: 1 };
+		const piText = await bash
+			.execute("c", args, undefined, undefined, { cwd: process.cwd(), sessionManager: SessionManager.inMemory(process.cwd()) } as never)
+			.then(
+				() => undefined,
+				(error: Error) => error.message,
+			);
+		if (piText === undefined) throw new Error("Fixture defect: the background writer did not hit the timeout");
+
+		const rendered = buildHarness([
+			assistantCalls({ id: "c", name: "bash", arguments: args }),
+			toolResult({ toolCallId: "c", toolName: "bash", text: piText, isError: true }),
+		]).text();
+
+		expect(rendered, `Pi's footer: ${JSON.stringify(piText.split("\n").at(-1))}`).toContain("✗ timeout 1s");
+		expect(rendered).not.toContain("Command timed out");
+	});
 });
 
 describe("overlay tool rendering — bounded and stable", () => {
