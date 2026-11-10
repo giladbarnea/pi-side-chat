@@ -7,13 +7,14 @@ import { conversationFingerprint } from "./rebase.js";
 import {
 	assistantText,
 	createChildServices,
-	DISPATCH_PREAMBLES,
+	dispatchTask,
 	parentExtensionArgs,
 	parseForwardedArgs,
 	reportAgentFailure,
 	resolveToolOptions,
 	runChildTurns,
 	subscribeToChildSession,
+	userMessageText,
 	waitForInstruction,
 } from "./runner.js";
 import type {
@@ -51,35 +52,27 @@ export type DispatchBoundary = {
 };
 
 /**
- * Split a child's resolved context at its dispatch boundary — the first user message carrying
- * a dispatch preamble. Undefined when no message carries one (a /fork child, or a child whose
- * own compaction summarized the boundary away). The system messages right before that prompt are
- * the child's own: Pi persists its prompt and tool changes there on the child's first request.
+ * Split a child's resolved context at its dispatch boundary — the last user message carrying
+ * a dispatch preamble, since a fork of a fork inherits its parent's boundary too. Undefined when
+ * no message carries one (a /fork child, or a child whose own compaction summarized the boundary
+ * away). The system messages right before that prompt are the child's own: Pi persists its prompt
+ * and tool changes there on the child's first request.
  */
 export function splitAtDispatchBoundary(
 	messages: readonly AgentMessage[],
 ): DispatchBoundary | undefined {
-	for (const [index, message] of messages.entries()) {
-		if (message.role !== "user") continue;
-		const text = userMessageText(message);
-		const preamble = DISPATCH_PREAMBLES.find((candidate) => text.startsWith(candidate));
-		if (preamble === undefined) continue;
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		const task = dispatchTask(messages[index] as AgentMessage);
+		if (task === undefined) continue;
 		let conversationStart = index;
 		while (messages[conversationStart - 1]?.role === "system") conversationStart -= 1;
 		return {
 			base: messages.slice(0, conversationStart),
 			conversation: messages.slice(conversationStart),
-			task: text.slice(preamble.length),
+			task,
 		};
 	}
 	return undefined;
-}
-
-function userMessageText(message: Extract<AgentMessage, { role: "user" }>): string {
-	if (typeof message.content === "string") return message.content;
-	return message.content
-		.flatMap((part) => (part.type === "text" ? [part.text] : []))
-		.join("\n");
 }
 
 export type ChildSessionFileMatch = { sessionId: string; file: string };

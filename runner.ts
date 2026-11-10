@@ -590,7 +590,9 @@ async function runAgentLifecycle(
 			widget,
 		);
 		unsubscribe = subscribeToChildSession(session, runningAgent, widget);
-		await runChildTurns(pi, isShuttingDown, DISPATCH_PREAMBLE + task, session, runningAgent, widget);
+		const forkedBefore = inheritedMessages.some((message) => dispatchTask(message) !== undefined);
+		const preamble = forkedBefore ? REFORK_DISPATCH_PREAMBLE : DISPATCH_PREAMBLE;
+		await runChildTurns(pi, isShuttingDown, preamble + task, session, runningAgent, widget);
 	} catch (error) {
 		reportAgentFailure(pi, isShuttingDown, runningAgent, widget, error);
 	} finally {
@@ -635,11 +637,37 @@ export function reportAgentFailure(
 
 /** Every background dispatch prefixes its task with this; attach recognizes it as the child's dispatch boundary. */
 export const DISPATCH_PREAMBLE =
-	"You are running in an ephemeral, forked background process now, concurrently with the main session. ";
+	"You are running in a forked background process now, concurrently with the main session. ";
+/** A background dispatch from a session that already carries a dispatch preamble: a fork of a fork. */
+export const REFORK_DISPATCH_PREAMBLE =
+	"You are running in yet another forked background process now, concurrently with the main session. ";
 /** The -h dispatch's preamble: that child is interactive, and the user may talk to it in its pane. */
 export const PANE_DISPATCH_PREAMBLE =
 	"You are running in a forked session now, in a herdr pane beside the main session. The user may talk to you here. ";
-export const DISPATCH_PREAMBLES = [DISPATCH_PREAMBLE, PANE_DISPATCH_PREAMBLE] as const;
+/** The background preamble through 0.0.17; children dispatched then still carry it, and attach must recognize them. */
+const LEGACY_DISPATCH_PREAMBLE =
+	"You are running in an ephemeral, forked background process now, concurrently with the main session. ";
+const DISPATCH_PREAMBLES = [
+	DISPATCH_PREAMBLE,
+	REFORK_DISPATCH_PREAMBLE,
+	PANE_DISPATCH_PREAMBLE,
+	LEGACY_DISPATCH_PREAMBLE,
+] as const;
+
+/** The task of a user message that carries a dispatch preamble, or undefined for any other message. */
+export function dispatchTask(message: AgentMessage): string | undefined {
+	if (message.role !== "user") return undefined;
+	const text = userMessageText(message);
+	const preamble = DISPATCH_PREAMBLES.find((candidate) => text.startsWith(candidate));
+	return preamble === undefined ? undefined : text.slice(preamble.length);
+}
+
+export function userMessageText(message: Extract<AgentMessage, { role: "user" }>): string {
+	if (typeof message.content === "string") return message.content;
+	return message.content
+		.flatMap((part) => (part.type === "text" ? [part.text] : []))
+		.join("\n");
+}
 
 /** Run turns on an initialized child session until it posts, retires, or shuts down. The initial instruction is sent verbatim. */
 export async function runChildTurns(

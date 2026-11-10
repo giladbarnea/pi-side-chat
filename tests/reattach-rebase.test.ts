@@ -70,13 +70,16 @@ async function cannedModelRuntime(): Promise<ModelRuntime> {
 /**
  * The main Pi process as the user drives it: a persisted main session on `canned/astra`, the
  * widget with its keyboard, the real rebase delivery, and the `/agent` and `/agent-attach` handlers.
+ * Given an existing session, such as a detached child's, the process resumes it instead.
  */
-async function mainProcess(cwd: string) {
+async function mainProcess(cwd: string, resumed?: SessionManager) {
 	const runtime = await cannedModelRuntime();
 	const astra = runtime.getModel("canned", "astra") as Model;
-	const main = SessionManager.create(cwd);
-	main.appendMessage({ role: "user", content: "plan the migration", timestamp: 1 } as never);
-	main.appendMessage(cannedAnswer(astra, "here is the plan"));
+	const main = resumed ?? SessionManager.create(cwd);
+	if (!resumed) {
+		main.appendMessage({ role: "user", content: "plan the migration", timestamp: 1 } as never);
+		main.appendMessage(cannedAnswer(astra, "here is the plan"));
+	}
 	let sendKey: (data: string) => unknown = () => undefined;
 	let widgetComponent: Component | undefined;
 	const switchedTo: string[] = [];
@@ -120,6 +123,7 @@ async function mainProcess(cwd: string) {
 	let agentNumber = 0;
 	return {
 		main,
+		astra,
 		switchedTo,
 		async dispose() {
 			for (const agent of runningAgents) agent.retire?.();
@@ -241,6 +245,103 @@ describe("/agent-attach keeps rebase available when main has not progressed (iss
 				expect(mainPi.widgetText()).toContain("Can't rebase: the main session has drifted since dispatch");
 				expect(mainPi.switchedTo).toEqual([]);
 				expect(mainPi.main.getEntries()).toHaveLength(mainEntryCount);
+			} finally {
+				await mainPi.dispose();
+			}
+		});
+	});
+});
+
+type MainProcess = Awaited<ReturnType<typeof mainProcess>>;
+
+function childSessionFile(parentPi: MainProcess, sessionId: string): string {
+	const [match] = matchChildSessionFiles(sessionId, parentPi.main.getSessionDir());
+	if (!match) throw new Error(`No session file for ${sessionId}`);
+	return match.file;
+}
+
+/** The text of every user message on the session's path; a typed prompt persists as text parts. */
+function userPrompts(sessionFile: string): string[] {
+	return SessionManager.open(sessionFile)
+		.buildSessionContext()
+		.messages.flatMap((message) => {
+			if (message.role !== "user") return [];
+			if (typeof message.content === "string") return [message.content];
+			return [message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n")];
+		});
+}
+
+/** Attach the child, then check that r is offered and fast-forwards the session it was dispatched from. */
+async function expectAttachWithRebase(parentPi: MainProcess, sessionId: string, expectedTask: string): Promise<void> {
+	await parentPi.attach(sessionId);
+	const agent = await idleAgent(parentPi.runningAgents);
+	expect(agent.task, "Expected attach to recover the child's own task").toBe(expectedTask);
+	parentPi.press(DOWN);
+	expect(
+		parentPi.widgetText(),
+		"Expected attach to find the child's own dispatch boundary, so rebase stays available",
+	).toContain("r rebase");
+	parentPi.press("r");
+	expect(parentPi.switchedTo, "Expected r to fast-forward the parent session").toEqual([
+		parentPi.main.getSessionFile(),
+	]);
+}
+
+describe("the dispatch preamble a child receives (issues 7 and 8)", () => {
+	test("a child dispatched from main is told it runs in a forked background process, not an ephemeral one", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const mainPi = await mainProcess(cwd);
+			try {
+				const sessionId = await dispatchAndDetach(mainPi, "review the migration");
+
+				expect(userPrompts(childSessionFile(mainPi, sessionId))).toEqual([
+					"plan the migration",
+					"You are running in a forked background process now, concurrently with the main session. review the migration",
+				]);
+				await expectAttachWithRebase(mainPi, sessionId, "review the migration");
+			} finally {
+				await mainPi.dispose();
+			}
+		});
+	});
+
+	test("a child dispatched from a child is told it is yet another fork, and attaches back to that child with rebase", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const mainPi = await mainProcess(cwd);
+			const childId = await dispatchAndDetach(mainPi, "review the migration");
+			const childFile = childSessionFile(mainPi, childId);
+			await mainPi.dispose();
+			const childPi = await mainProcess(cwd, SessionManager.open(childFile));
+			try {
+				const grandchildId = await dispatchAndDetach(childPi, "audit the rollback");
+
+				expect(userPrompts(childSessionFile(childPi, grandchildId))).toEqual([
+					"plan the migration",
+					"You are running in a forked background process now, concurrently with the main session. review the migration",
+					"You are running in yet another forked background process now, concurrently with the main session. audit the rollback",
+				]);
+				await expectAttachWithRebase(childPi, grandchildId, "audit the rollback");
+			} finally {
+				await childPi.dispose();
+			}
+		});
+	});
+
+	test("a child dispatched before the change, with the old ephemeral preamble and no dispatch record, still attaches with rebase", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const mainPi = await mainProcess(cwd);
+			try {
+				const oldChild = SessionManager.create(cwd, undefined, { parentSession: mainPi.main.getSessionFile() });
+				for (const message of mainPi.main.buildSessionContext().messages) oldChild.appendMessage(message as never);
+				oldChild.appendMessage({
+					role: "user",
+					content:
+						"You are running in an ephemeral, forked background process now, concurrently with the main session. review the migration",
+					timestamp: 3,
+				} as never);
+				oldChild.appendMessage(cannedAnswer(mainPi.astra, "reviewed long ago"));
+
+				await expectAttachWithRebase(mainPi, oldChild.getSessionId(), "review the migration");
 			} finally {
 				await mainPi.dispose();
 			}
