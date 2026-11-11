@@ -25,12 +25,12 @@ function completedSquash(): {
 	const agent = {
 		id: "user-1",
 		sessionId: "session-1",
-		command: "agent",
+		command: "side",
 		inheritedContext: true,
 		model: "provider/model",
 		modelLabel: "model",
 		task: "review the migration",
-		invocation: "/agent -s review the migration",
+		invocation: "/side -s review the migration",
 		notifyMainAgent: true,
 		dispatchBaseFingerprint: "[]",
 		mainContextState: "will-squash",
@@ -124,7 +124,7 @@ describe("parent main-context confirmation", () => {
 });
 
 describe("extension registration", () => {
-	test("registers the /agent and /agent-attach commands", async () => {
+	test("registers the /side and /side-attach commands", async () => {
 		const { default: userAgent } = await import("../index.ts");
 		const commands: string[] = [];
 		const pi = {
@@ -140,6 +140,30 @@ describe("extension registration", () => {
 
 		userAgent(pi);
 
-		expect(commands.sort()).toEqual(["agent", "agent-attach"]);
+		expect(commands.sort()).toEqual(["side", "side-attach"]);
+	});
+
+	test("a /side usage error reaches the main agent as a card naming /side, inside the kept user_agent_error tag", async () => {
+		const { default: userAgent } = await import("../index.ts");
+		type Handler = (args: string, ctx: unknown) => Promise<void>;
+		const handlers = new Map<string, Handler>();
+		const sent: Array<{ customType: string; content: string }> = [];
+		const pi = {
+			registerCommand: (name: string, options: { handler: Handler }) => handlers.set(name, options.handler),
+			registerMessageRenderer: () => undefined,
+			registerEntryRenderer: () => undefined,
+			on: () => undefined,
+			getAllTools: () => [],
+			getCommands: () => [],
+			sendMessage: (message: { customType: string; content: string }) => sent.push(message),
+			appendEntry: () => undefined,
+		} as never;
+		userAgent(pi);
+
+		await handlers.get("side")?.("-m", { hasUI: false });
+
+		expect(sent).toHaveLength(1);
+		expect(sent[0]?.customType).toBe("pi-user-agents");
+		expect(sent[0]?.content).toContain('<user_agent_error command="/side">');
 	});
 });

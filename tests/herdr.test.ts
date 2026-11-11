@@ -3,8 +3,8 @@ import { herdrAgentName, insideHerdr, openPiInHerdrPane } from "../herdr.ts";
 import { fakeHerdr, insideFakeHerdrPane } from "./herdr-fake.ts";
 
 describe("herdrAgentName", () => {
-	test("is unique per child and valid for herdr: 'agent-' plus the session id's millisecond prefix", () => {
-		expect(herdrAgentName("0199c4f2-8b1a-7c3d-9e05-6a2f18d7b4ce")).toBe("agent-0199c4f2-8b1a");
+	test("is unique per child and valid for herdr: 'side-' plus the session id's millisecond prefix", () => {
+		expect(herdrAgentName("0199c4f2-8b1a-7c3d-9e05-6a2f18d7b4ce")).toBe("side-0199c4f2-8b1a");
 		expect(herdrAgentName("0199c4f2-8b1a-7c3d-9e05-6a2f18d7b4ce")).toMatch(/^[a-z][a-z0-9_-]{0,31}$/);
 		expect(
 			herdrAgentName("0199c4f2-8b1a-7c3d-9e05-6a2f18d7b4ce"),

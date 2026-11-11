@@ -10,10 +10,10 @@ export function insideHerdr(): boolean {
  * match [a-z][a-z0-9_-]{0,31}; the first 13 characters of a v7 session id hold its complete
  * millisecond timestamp, so two children never share one.
  *
- * @example herdrAgentName("0199c4f2-8b1a-7c3d-9e05-6a2f18d7b4ce") // "agent-0199c4f2-8b1a"
+ * @example herdrAgentName("0199c4f2-8b1a-7c3d-9e05-6a2f18d7b4ce") // "side-0199c4f2-8b1a"
  */
 export function herdrAgentName(sessionId: string): string {
-	return `agent-${sessionId.slice(0, 13)}`;
+	return `side-${sessionId.slice(0, 13)}`;
 }
 
 /** Split the calling pane and start `pi <piArgs>` in the new pane; resolves with the pane id once pi is ready. */

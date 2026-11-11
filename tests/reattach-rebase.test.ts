@@ -69,7 +69,7 @@ async function cannedModelRuntime(): Promise<ModelRuntime> {
 
 /**
  * The main Pi process as the user drives it: a persisted main session on `canned/astra`, the
- * widget with its keyboard, the real rebase delivery, and the `/agent` and `/agent-attach` handlers.
+ * widget with its keyboard, the real rebase delivery, and the `/side` and `/side-attach` handlers.
  * Given an existing session, such as a detached child's, the process resumes it instead.
  */
 async function mainProcess(cwd: string, resumed?: SessionManager) {
@@ -145,9 +145,9 @@ async function mainProcess(cwd: string, resumed?: SessionManager) {
 				widget,
 				() => false,
 				() => ++agentNumber,
-				"agent",
+				"side",
 				args,
-				`/agent ${args}`,
+				`/side ${args}`,
 				ctx,
 			),
 		attach: (sessionId: string) =>
@@ -185,7 +185,7 @@ async function dispatchAndDetach(mainPi: Awaited<ReturnType<typeof mainProcess>>
 	return agent.sessionId;
 }
 
-describe("/agent-attach keeps rebase available when main has not progressed (issue 17)", () => {
+describe("/side-attach keeps rebase available when main has not progressed (issue 17)", () => {
 	test.each([
 		["with the parent's model", "review the migration", "astra"],
 		["switched to another model", "-m canned/opus review the migration", "opus"],
@@ -342,6 +342,33 @@ describe("the dispatch preamble a child receives (issues 7 and 8)", () => {
 				oldChild.appendMessage(cannedAnswer(mainPi.astra, "reviewed long ago"));
 
 				await expectAttachWithRebase(mainPi, oldChild.getSessionId(), "review the migration");
+			} finally {
+				await mainPi.dispose();
+			}
+		});
+	});
+});
+
+describe("sessions written before the side chat rename (0.0.19 and older)", () => {
+	test("a child with 0.0.19's pi-user-agents-dispatch record attaches through /side-attach and keeps its recorded task", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const mainPi = await mainProcess(cwd);
+			try {
+				const oldChild = SessionManager.create(cwd, undefined, { parentSession: mainPi.main.getSessionFile() });
+				oldChild.appendCustomEntry("pi-user-agents-dispatch", {
+					forwardedArgs: [],
+					task: "review the migration, as recorded",
+					isolate: false,
+				});
+				for (const message of mainPi.main.buildSessionContext().messages) oldChild.appendMessage(message as never);
+				oldChild.appendMessage({
+					role: "user",
+					content: "You are running in a forked background process now, concurrently with the main session. review the migration",
+					timestamp: 3,
+				} as never);
+				oldChild.appendMessage(cannedAnswer(mainPi.astra, "reviewed in 0.0.19"));
+
+				await expectAttachWithRebase(mainPi, oldChild.getSessionId(), "review the migration, as recorded");
 			} finally {
 				await mainPi.dispose();
 			}

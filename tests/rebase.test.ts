@@ -159,7 +159,7 @@ describe("createRebaseDelivery — fast-forward onto the dispatching session", (
 		return {
 			id: "user-1",
 			sessionId: "child-session-1",
-			command: "agent",
+			command: "side",
 			modelLabel: "model",
 			task: "the task",
 			dispatchBaseFingerprint,

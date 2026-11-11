@@ -25,12 +25,12 @@ function completedAgent(): RunningAgent {
 	return {
 		id: "user-1",
 		sessionId: "session-1",
-		command: "agent",
+		command: "side",
 		inheritedContext: true,
 		model: "provider/model",
 		modelLabel: "model",
 		task: "review the migration",
-		invocation: "/agent review the migration",
+		invocation: "/side review the migration",
 		notifyMainAgent: false,
 		dispatchBaseFingerprint: "[]",
 		mainContextState: "separate",
@@ -300,7 +300,7 @@ describe("completed agent transcript cards stay hidden", () => {
 			expect(renderEntry?.({}, { expanded }, theme)?.render(120)).toEqual([]);
 		}
 		const errors: AgentResultMessage[] = [];
-		reportCommandError({ sendMessage: (error: AgentResultMessage) => errors.push(error) } as unknown as ExtensionAPI, "agent", "-m", { hasUI: false } as never, "Usage: missing model");
+		reportCommandError({ sendMessage: (error: AgentResultMessage) => errors.push(error) } as unknown as ExtensionAPI, "side", "-m", { hasUI: false } as never, "Usage: missing model");
 		expect(renderMessage?.(errors[0]!, { expanded: false }, theme)?.render(120).join("\n")).toContain("Usage: missing model");
 	});
 });
@@ -459,8 +459,8 @@ describe("command error cards", () => {
 		} as unknown as ExtensionAPI;
 		const headlessContext = { hasUI: false } as never;
 
-		reportCommandError(pi, "agent-attach", "ffff", headlessContext, "No agent session matches");
-		reportCommandError(pi, "agent", "-m", headlessContext, "Usage");
+		reportCommandError(pi, "side-attach", "ffff", headlessContext, "No side chat session matches");
+		reportCommandError(pi, "side", "-m", headlessContext, "Usage");
 
 		expect(sent).toHaveLength(2);
 		for (const message of sent) {
@@ -469,5 +469,35 @@ describe("command error cards", () => {
 				"Expected no isolated/inherited-context claim on an error card",
 			).toBeUndefined();
 		}
+	});
+});
+
+describe("sessions written before the side chat rename still render", () => {
+	test("0.0.19's persisted types keep their renderers, and an old /agent error card renders as it was typed", () => {
+		type RenderedComponent = { render(width: number): string[] } | undefined;
+		type Renderer = (value: { details?: unknown; data?: unknown }, options: { expanded: boolean }, theme: Theme) => RenderedComponent;
+		const messageRenderers = new Map<string, Renderer>();
+		const entryRenderers = new Map<string, Renderer>();
+		const pi = {
+			registerMessageRenderer: (customType: string, renderer: Renderer) => messageRenderers.set(customType, renderer),
+			registerEntryRenderer: (customType: string, renderer: Renderer) => entryRenderers.set(customType, renderer),
+		} as unknown as ExtensionAPI;
+		registerUserAgentRenderer(pi);
+		const theme = { fg: (_color: string, text: string) => text, bold: (text: string) => text } as Theme;
+		const render = (renderer: Renderer | undefined, value: { details?: unknown; data?: unknown }) =>
+			renderer?.(value, { expanded: false }, theme)?.render(120).join("\n").trim();
+
+		expect([...messageRenderers.keys()]).toEqual(["pi-user-agents"]);
+		expect([...entryRenderers.keys()].sort()).toEqual([
+			"pi-user-agents",
+			"pi-user-agents-attached",
+			"pi-user-agents-detached",
+			"pi-user-agents-rebased",
+		]);
+		expect(render(messageRenderers.get("pi-user-agents"), { details: { command: "agent", error: "Usage: missing model" } })).toBe(
+			"/agent: Usage: missing model",
+		);
+		expect(render(entryRenderers.get("pi-user-agents-detached"), { data: { sessionId: "0199-abcd" } })).toBe("Detached session 0199-abcd");
+		expect(render(entryRenderers.get("pi-user-agents-attached"), { data: { sessionId: "0199-abcd" } })).toBe("Attached session 0199-abcd");
 	});
 });

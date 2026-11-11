@@ -112,7 +112,7 @@ async function startUserAgent(
 	const childSessionManager = SessionManager.create(ctx.cwd, undefined, {
 		parentSession: ctx.sessionManager.getSessionFile(),
 	});
-	// The dispatch record: /agent-attach restores tool and resource options from it later.
+	// The dispatch record: /side-attach restores tool and resource options from it later.
 	childSessionManager.appendCustomEntry(DISPATCH_ENTRY_TYPE, {
 		forwardedArgs: parsed.forwardedArgs,
 		task: parsed.task,
@@ -194,7 +194,7 @@ async function dispatchToHerdrPane(
 	persistMessages(childSessionManager, inheritedMessages, []);
 	// Pi resumes a session with the model of whichever comes last on the path, a model_change entry
 	// or an assistant message, and writes model_change itself only on its empty-session path. Record
-	// both after the snapshot, or a later /agent-attach or /resume takes main's last answer's model.
+	// both after the snapshot, or a later /side-attach or /resume takes main's last answer's model.
 	childSessionManager.appendModelChange(model.provider, model.id);
 	childSessionManager.appendThinkingLevelChange(thinkingLevel);
 	const sessionFile = flushSessionFile(childSessionManager);
@@ -952,12 +952,12 @@ function getFinalAssistantText(session: AgentSession): string {
 		(message) => message.role === "assistant",
 	);
 	const lastMessage = assistantMessages.at(-1);
-	if (!lastMessage) throw new Error("User agent finished without an assistant message");
+	if (!lastMessage) throw new Error("Side chat finished without an assistant message");
 	if (lastMessage.stopReason === "error" || lastMessage.stopReason === "aborted") {
-		throw new Error(lastMessage.errorMessage ?? `User agent ${lastMessage.stopReason}`);
+		throw new Error(lastMessage.errorMessage ?? `Side chat ${lastMessage.stopReason}`);
 	}
 
 	const text = assistantText(lastMessage).trim();
-	if (!text) throw new Error("User agent returned no text response");
+	if (!text) throw new Error("Side chat returned no text response");
 	return text;
 }

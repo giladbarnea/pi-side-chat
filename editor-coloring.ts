@@ -27,7 +27,7 @@ type ColoringRuntimeEditor = EditorComponent & {
 	layoutText?: (contentWidth: number) => LayoutLine[];
 };
 
-const COLORED_EDITOR = Symbol.for("pi-user-agents:coloring-editor");
+const COLORED_EDITOR = Symbol.for("pi-side-chat:coloring-editor");
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 type ColoredEditor = ColoringRuntimeEditor & { [COLORED_EDITOR]?: true };
@@ -36,7 +36,7 @@ type ColoredEditor = ColoringRuntimeEditor & { [COLORED_EDITOR]?: true };
  * Map an editor line to theme-colored spans via the shared semantic scan.
  * Returns undefined for lines that are not agent commands.
  *
- * @example computeAgentColorSpans("/agent -m gpt56s go")?.[1] // { start: 7, end: 9, color: "syntaxType" }
+ * @example computeAgentColorSpans("/side -m gpt56s go")?.[1] // { start: 6, end: 8, color: "syntaxType" }
  */
 export function computeAgentColorSpans(
 	line: string,
@@ -73,7 +73,7 @@ export function decorateColoringEditor<T extends EditorComponent>(
 	const layoutText = runtimeEditor.layoutText;
 	const getLines = runtimeEditor.getLines;
 	if (typeof layoutText !== "function" || typeof getLines !== "function")
-		throw new Error("pi-user-agents coloring requires editor.layoutText() and editor.getLines()");
+		throw new Error("pi-side-chat coloring requires editor.layoutText() and editor.getLines()");
 	runtimeEditor.layoutText = (contentWidth: number): LayoutLine[] => {
 		const layoutLines = layoutText.call(editor, contentWidth);
 		const line = getLines.call(editor)[0] ?? "";

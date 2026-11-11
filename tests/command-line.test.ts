@@ -10,12 +10,12 @@ import { parseAgentCommand } from "../runner.ts";
 describe("theme option policy", () => {
 	test("--theme is rejected while --no-themes remains supported", () => {
 		assert.throws(
-			() => parseAgentCommand("--theme ./theme.json do it", "agent"),
-			/\/agent does not support --theme/,
-			"Expected /agent to reject Pi's singular --theme option",
+			() => parseAgentCommand("--theme ./theme.json do it", "side"),
+			/\/side does not support --theme/,
+			"Expected /side to reject Pi's singular --theme option",
 		);
 		assert.deepEqual(
-			parseAgentCommand("--no-themes do it", "agent"),
+			parseAgentCommand("--no-themes do it", "side"),
 			{
 				isolate: false,
 				squash: false,
@@ -24,12 +24,12 @@ describe("theme option policy", () => {
 				task: "do it",
 				warnings: [],
 			},
-			"Expected /agent to continue forwarding --no-themes",
+			"Expected /side to continue forwarding --no-themes",
 		);
 	});
 
 	test("a prose-mode --theme advisory retains its path value", () => {
-		const parsed = parseAgentCommand("do it --theme ./theme.json", "agent");
+		const parsed = parseAgentCommand("do it --theme ./theme.json", "side");
 		assert.deepEqual(
 			parsed,
 			{
@@ -39,7 +39,7 @@ describe("theme option policy", () => {
 				forwardedArgs: [],
 				task: "do it --theme ./theme.json",
 				warnings: [
-					"--theme ./theme.json was included in the prompt body. To specify an argument or an option, place it at the beginning of the command input: /agent --theme ./theme.json do …",
+					"--theme ./theme.json was included in the prompt body. To specify an argument or an option, place it at the beginning of the command input: /side --theme ./theme.json do …",
 				],
 			},
 			`Expected the unsupported theme advisory to retain its path. Got: ${JSON.stringify(parsed)}`,
@@ -79,17 +79,17 @@ describe("forwardedArgsForPane — what a Pi in a herdr pane receives", () => {
 	});
 });
 
-describe("/agent-attach stays outside the /agent editor machinery", () => {
-	test("neither the semantic scan nor cursor analysis recognizes an /agent-attach line", () => {
+describe("/side-attach stays outside the /side editor machinery", () => {
+	test("neither the semantic scan nor cursor analysis recognizes an /side-attach line", () => {
 		assert.equal(
-			scanAgentCommandLine("/agent-attach 0199c4f2"),
+			scanAgentCommandLine("/side-attach 0199c4f2"),
 			undefined,
-			"Expected /agent coloring to ignore /agent-attach lines",
+			"Expected /side coloring to ignore /side-attach lines",
 		);
 		assert.equal(
-			analyzeAgentEditorInput("/agent-attach -", "/agent-attach -".length),
+			analyzeAgentEditorInput("/side-attach -", "/side-attach -".length),
 			undefined,
-			"Expected /agent autocomplete to ignore /agent-attach lines",
+			"Expected /side autocomplete to ignore /side-attach lines",
 		);
 	});
 });

@@ -35,9 +35,9 @@ export default function userAgent(pi: ExtensionAPI): void {
 
 	pi.on("message_end", (event) => confirmMainContextSquash(event, widget));
 
-	pi.registerCommand("agent", {
+	pi.registerCommand("side", {
 		description:
-			"Run a background SDK agent with current session context; forwards pi CLI options like --thinking (-i/--isolate for none)",
+			"Start a side chat in the background with current session context; forwards pi CLI options like --thinking (-i/--isolate for none)",
 		handler: async (args, ctx) => {
 			mainSessionContext = ctx;
 			await handleAgentCommand(
@@ -46,16 +46,16 @@ export default function userAgent(pi: ExtensionAPI): void {
 				widget,
 				() => shuttingDown,
 				() => ++nextAgentNumber,
-				"agent",
+				"side",
 				args,
-				`/agent ${args}`.trim(),
+				`/side ${args}`.trim(),
 				ctx,
 			);
 		},
 	});
 
-	pi.registerCommand("agent-attach", {
-		description: "Reattach a detached agent session by id, back into the widget",
+	pi.registerCommand("side-attach", {
+		description: "Reattach a detached side chat session by id, back into the widget",
 		handler: async (args, ctx) => {
 			mainSessionContext = ctx;
 			await handleAttachCommand(

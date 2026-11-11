@@ -382,7 +382,7 @@ export class AgentViewer implements Component {
 				row(
 					th.fg(
 						"warning",
-						`⚠ Rebase will detach ${detachCount} other agent session${detachCount === 1 ? "" : "s"}. r again to confirm`,
+						`⚠ Rebase will detach ${detachCount} other side chat session${detachCount === 1 ? "" : "s"}. r again to confirm`,
 					),
 				),
 			);

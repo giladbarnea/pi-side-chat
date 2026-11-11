@@ -130,7 +130,7 @@ export const AGENT_OPTIONS: readonly AgentOptionDefinition[] = [
 		role: "extension",
 		arity: "boolean",
 		autocomplete: true,
-		description: "Open the agent in a new herdr pane",
+		description: "Open the side chat in a new herdr pane",
 	},
 	{
 		semanticId: "provider",
@@ -360,7 +360,7 @@ function blockedOption(
  * options and their values with source spans, the prose boundary, warnings, and the
  * first blocked option. Runtime parsing and editor coloring both consume this scan.
  *
- * @example scanAgentArguments("-m gpt56s explain it", "agent").tokens[0]?.semantic // "option"
+ * @example scanAgentArguments("-m gpt56s explain it", "side").tokens[0]?.semantic // "option"
  */
 export function scanAgentArguments(
 	args: string,
@@ -489,7 +489,7 @@ export function forwardedArgsForPane(forwardedArgs: readonly string[]): string[]
 /**
  * Scan a complete editor line, shifting semantic tokens into line coordinates.
  *
- * @example scanAgentCommandLine("/agent -m gpt56s explain it")?.commandEnd // 6
+ * @example scanAgentCommandLine("/side -m gpt56s explain it")?.commandEnd // 5
  */
 export function scanAgentCommandLine(
 	line: string,
@@ -512,14 +512,14 @@ export function scanAgentCommandLine(
 /**
  * Parse submitted agent-command arguments through the shared option declaration.
  *
- * @example parseAgentCommand("-m gpt56s explain it", "agent").forwardedArgs // ["--model", "gpt56s"]
+ * @example parseAgentCommand("-m gpt56s explain it", "side").forwardedArgs // ["--model", "gpt56s"]
  */
 export function parseAgentCommand(args: string, command: AgentCommandName): ParsedAgentCommand {
 	const scan = scanAgentArguments(args, command);
 	if (scan.blocked) {
 		const token = args.slice(scan.blocked.start, scan.blocked.end);
 		throw new Error(
-			`/${command} does not support ${token}; it would disrupt the background agent run.`,
+			`/${command} does not support ${token}; it would disrupt the background side chat.`,
 		);
 	}
 	if (!scan.prose.trim())
@@ -528,7 +528,7 @@ export function parseAgentCommand(args: string, command: AgentCommandName): Pars
 		);
 	if (scan.herdr && scan.squash)
 		throw new Error(
-			`/${command} -h and -s conflict: an agent in a herdr pane never squashes into this context.`,
+			`/${command} -h and -s conflict: a side chat in a herdr pane never squashes into this context.`,
 		);
 	return {
 		isolate: scan.isolate,
@@ -543,7 +543,7 @@ export function parseAgentCommand(args: string, command: AgentCommandName): Pars
 /**
  * Analyze the cursor in a complete editor line without committing a partial token as prose.
  *
- * @example analyzeAgentEditorInput("/agent --thi", 12)?.kind // "option"
+ * @example analyzeAgentEditorInput("/side --thi", 11)?.kind // "option"
  */
 export function analyzeAgentEditorInput(
 	line: string,
@@ -691,9 +691,9 @@ function readCursorValue(
 function matchAgentCommandPrefix(
 	line: string,
 ): { command: AgentCommandName; argumentOffset: number } | undefined {
-	const match = /^\/agent(?=$|\s)/.exec(line);
+	const match = /^\/side(?=$|\s)/.exec(line);
 	if (!match) return undefined;
-	return { command: "agent", argumentOffset: match[0].length };
+	return { command: "side", argumentOffset: match[0].length };
 }
 
 function readValueSpan(

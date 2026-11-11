@@ -36,7 +36,7 @@ type AutocompleteRuntimeEditor = EditorComponent & {
 	tryTriggerAutocomplete?: (explicitTab?: boolean) => void;
 };
 
-const DECORATED_EDITOR = Symbol.for("pi-user-agents:autocomplete-editor");
+const DECORATED_EDITOR = Symbol.for("pi-side-chat:autocomplete-editor");
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 // Pi's resolver only calls getAvailable(), but its SDK type requires the internal ModelRuntime unavailable to extensions.
 const resolveExtensionModelScope = resolveModelScopeWithDiagnostics as unknown as (
@@ -46,7 +46,7 @@ const resolveExtensionModelScope = resolveModelScopeWithDiagnostics as unknown a
 
 type DecoratedEditor = AutocompleteRuntimeEditor & { [DECORATED_EDITOR]?: true };
 
-/** @example getOptionItems(analyzeAgentEditorInput("/agent --thi", 12) as OptionCursorExpectation)[0]?.label // "--thinking <level>" */
+/** @example getOptionItems(analyzeAgentEditorInput("/side --thi", 11) as OptionCursorExpectation)[0]?.label // "--thinking <level>" */
 export function getOptionItems(expectation: OptionCursorExpectation): AutocompleteItem[] {
 	return AGENT_OPTIONS.flatMap((option) => {
 		if (!option.autocomplete || expectation.usedSemanticIds.has(option.semanticId)) return [];
@@ -452,12 +452,12 @@ function decorateAutocompleteEditor<T extends EditorComponent>(
 	if (runtimeEditor[DECORATED_EDITOR]) return editor;
 	const cancelAutocomplete = runtimeEditor.cancelAutocomplete;
 	if (typeof cancelAutocomplete !== "function")
-		throw new Error("pi-user-agents autocomplete requires editor.cancelAutocomplete()");
+		throw new Error("pi-side-chat autocomplete requires editor.cancelAutocomplete()");
 	const handleInput = editor.handleInput.bind(editor);
 	editor.handleInput = (data) => {
 		const getCursor = runtimeEditor.getCursor;
 		if (typeof getCursor !== "function")
-			throw new Error("pi-user-agents autocomplete requires editor.getCursor()");
+			throw new Error("pi-side-chat autocomplete requires editor.getCursor()");
 		const beforeCursor = getCursor.call(editor);
 		const beforeText = editor.getText();
 		const beforeExpectation =
@@ -542,7 +542,7 @@ function decorateAutocompleteEditor<T extends EditorComponent>(
 		}
 		const triggerAutocomplete = runtimeEditor.tryTriggerAutocomplete;
 		if (typeof triggerAutocomplete !== "function")
-			throw new Error("pi-user-agents autocomplete requires editor.tryTriggerAutocomplete()");
+			throw new Error("pi-side-chat autocomplete requires editor.tryTriggerAutocomplete()");
 		triggerAutocomplete.call(editor, false);
 	};
 	runtimeEditor[DECORATED_EDITOR] = true;
@@ -581,12 +581,12 @@ function triggerValueAutocomplete(
 	if (expectation.option.completionDomain === "path") {
 		const forceFileAutocomplete = runtimeEditor.forceFileAutocomplete;
 		if (typeof forceFileAutocomplete !== "function")
-			throw new Error("pi-user-agents autocomplete requires editor.forceFileAutocomplete()");
+			throw new Error("pi-side-chat autocomplete requires editor.forceFileAutocomplete()");
 		forceFileAutocomplete.call(editor, false);
 		return;
 	}
 	const triggerAutocomplete = runtimeEditor.tryTriggerAutocomplete;
 	if (typeof triggerAutocomplete !== "function")
-		throw new Error("pi-user-agents autocomplete requires editor.tryTriggerAutocomplete()");
+		throw new Error("pi-side-chat autocomplete requires editor.tryTriggerAutocomplete()");
 	triggerAutocomplete.call(editor, false);
 }

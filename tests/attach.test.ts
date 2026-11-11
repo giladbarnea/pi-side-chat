@@ -211,12 +211,12 @@ describe("buildAttachedAgent — an idle, steerable row rebuilt from the child's
 			...dispatched,
 		]);
 		try {
-			const agent = buildAttachedAgent(7, sessionManager, model, "/agent-attach 0199");
+			const agent = buildAttachedAgent(7, sessionManager, model, "/side-attach 0199");
 
 			expect(agent.id).toBe("user-7");
 			expect(agent.sessionId).toBe(sessionManager.getSessionId());
 			expect(agent).toMatchObject({
-				command: "agent",
+				command: "side",
 				status: "idle",
 				notifyMainAgent: false,
 				mainContextState: "separate",
@@ -247,7 +247,7 @@ describe("buildAttachedAgent — an idle, steerable row rebuilt from the child's
 	test("a child without a dispatch boundary attaches whole: full context, first prompt as task, no fast-forward base", () => {
 		const { sessionManager, sessionDirectory } = reopenedChildSession(inherited);
 		try {
-			const agent = buildAttachedAgent(2, sessionManager, model, "/agent-attach 0199");
+			const agent = buildAttachedAgent(2, sessionManager, model, "/side-attach 0199");
 
 			expect(agent.task).toBe("original main prompt");
 			expect(agent.conversationMessages.map((message) => message.role)).toEqual([
@@ -300,12 +300,12 @@ describe("runAttachedTurns — an attached agent binds, parks, then behaves like
 		return {
 			id: "user-7",
 			sessionId: "child-session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "openai-codex/gpt-5.6-luna",
 			modelLabel: "luna",
 			task: "review the migration",
-			invocation: "/agent-attach child-session-1",
+			invocation: "/side-attach child-session-1",
 			notifyMainAgent: false,
 			dispatchBaseFingerprint: "[]",
 			mainContextState: "separate",
@@ -484,7 +484,7 @@ describe("runAttachedTurns — an attached agent binds, parks, then behaves like
 	});
 });
 
-describe("handleAttachCommand — the /agent-attach command", () => {
+describe("handleAttachCommand — the /side-attach command", () => {
 	type Notification = { message: string; level: string };
 
 	function fakeContext(
@@ -557,7 +557,7 @@ describe("handleAttachCommand — the /agent-attach command", () => {
 			for (const args of ["", "   ", "one two"]) {
 				const { ctx, notifications } = fakeContext(cwd, main);
 				await handleAttachCommand(fakePi, runningAgents, widget, () => false, () => 1, args, ctx);
-				expect(notifications.at(-1)?.message).toBe("Usage: /agent-attach <child-session-id>");
+				expect(notifications.at(-1)?.message).toBe("Usage: /side-attach <child-session-id>");
 				expect(notifications.at(-1)?.level).toBe("error");
 			}
 			expect(runningAgents.size).toBe(0);
@@ -574,7 +574,7 @@ describe("handleAttachCommand — the /agent-attach command", () => {
 
 			await handleAttachCommand(fakePi, runningAgents, widget, () => false, () => 1, "ffff", ctx);
 
-			expect(notifications.at(-1)?.message).toBe('No agent session matches "ffff"');
+			expect(notifications.at(-1)?.message).toBe('No side chat session matches "ffff"');
 			expect(runningAgents.size).toBe(0);
 		});
 	});
@@ -611,12 +611,12 @@ describe("handleAttachCommand — the /agent-attach command", () => {
 			const attachedAgent = {
 				id: "user-1",
 				sessionId: "0199bbbb-1111-7abc-9e05-6a2f18d7b4ce",
-				command: "agent",
+				command: "side",
 				inheritedContext: true,
 				model: "provider/model",
 				modelLabel: "model",
 				task: "plan the migration",
-				invocation: "/agent plan the migration",
+				invocation: "/side plan the migration",
 				notifyMainAgent: false,
 				dispatchBaseFingerprint: "[]",
 				mainContextState: "separate",
@@ -645,18 +645,18 @@ describe("handleAttachCommand — the /agent-attach command", () => {
 		});
 	});
 
-	test("an already-attached session is idempotent: no new agent, just the View agent? confirmation", async () => {
+	test("an already-attached session is idempotent: no new agent, just the View side chat? confirmation", async () => {
 		await withTemporaryAgentDir(async (cwd) => {
 			const main = SessionManager.create(cwd);
 			const attachedAgent = {
 				id: "user-1",
 				sessionId: "0199aaaa-8b1a-7c3d-9e05-6a2f18d7b4ce",
-				command: "agent",
+				command: "side",
 				inheritedContext: true,
 				model: "provider/model",
 				modelLabel: "model",
 				task: "plan the migration",
-				invocation: "/agent plan the migration",
+				invocation: "/side plan the migration",
 				notifyMainAgent: false,
 				dispatchBaseFingerprint: "[]",
 				mainContextState: "separate",
@@ -683,7 +683,7 @@ describe("handleAttachCommand — the /agent-attach command", () => {
 				"0199aaaa",
 				accepted.ctx,
 			);
-			expect(accepted.confirmTitles).toEqual(["Agent already attached"]);
+			expect(accepted.confirmTitles).toEqual(["Side chat already attached"]);
 			expect(accepted.customCalls, "Expected yes to open the agent overlay").toHaveLength(1);
 			expect(runningAgents.size).toBe(1);
 			expect(accepted.notifications).toEqual([]);
@@ -698,7 +698,7 @@ describe("handleAttachCommand — the /agent-attach command", () => {
 				attachedAgent.sessionId,
 				declined.ctx,
 			);
-			expect(declined.confirmTitles).toEqual(["Agent already attached"]);
+			expect(declined.confirmTitles).toEqual(["Side chat already attached"]);
 			expect(declined.customCalls, "Expected no to leave the overlay closed").toHaveLength(0);
 			expect(runningAgents.size).toBe(1);
 		});
@@ -752,7 +752,7 @@ describe("attach re-arms the rebase fast-forward — the round-tripped base fing
 			const reopened = SessionManager.open(child.getSessionFile() as string);
 			const model = { provider: "openai-codex", id: "gpt-5.6-luna", name: "luna" } as Model;
 
-			const agent = buildAttachedAgent(1, reopened, model, "/agent-attach x");
+			const agent = buildAttachedAgent(1, reopened, model, "/side-attach x");
 
 			expect(
 				agent.dispatchBaseFingerprint,
@@ -857,7 +857,7 @@ describe("dispatch record — the dispatch-time facts attach cannot read from me
 			const reopened = SessionManager.open(child.getSessionFile() as string);
 			const model = { provider: "openai-codex", id: "gpt-5.6-luna", name: "luna" } as Model;
 
-			const agent = buildAttachedAgent(3, reopened, model, "/agent-attach x", {
+			const agent = buildAttachedAgent(3, reopened, model, "/side-attach x", {
 				forwardedArgs: [],
 				task: "the stored task",
 				isolate: true,
@@ -917,7 +917,7 @@ describe("createHerdrDelivery — attach a child session to a Pi in a new herdr 
 				expect(fake.calls.at(-1), "Expected the pane's pi to resume the file with the launch extensions and tools but not the model").toEqual([
 					"agent",
 					"start",
-					`agent-${child.getSessionId().slice(0, 13)}`,
+					`side-${child.getSessionId().slice(0, 13)}`,
 					"--kind",
 					"pi",
 					"--pane",

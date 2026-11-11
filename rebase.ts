@@ -46,7 +46,7 @@ export function mainContextFingerprint(sessionManager: MainSessionManager): stri
  * verbatim — compactions included, so main inherits the child's context boundary — except the
  * first user message, which carries the extension's internal background-process prefix and is
  * replaced by the plain task, and this extension's own custom messages, which are the one
- * trace of the user-agents machinery.
+ * trace of the side chat machinery.
  */
 export function selectRebaseMessages(
 	task: string,

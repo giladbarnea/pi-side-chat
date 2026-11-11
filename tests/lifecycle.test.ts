@@ -95,9 +95,9 @@ async function createHarness(
 	};
 	await session.bindExtensions({ mode: "print" });
 	const agent: RunningAgent = {
-		id: "test-agent", sessionId: session.sessionId, command: "agent",
+		id: "test-agent", sessionId: session.sessionId, command: "side",
 		inheritedContext: false, model: "lifecycle-test/test", modelLabel: "test",
-		task: "do the task", invocation: "/agent -s do the task", notifyMainAgent: true,
+		task: "do the task", invocation: "/side -s do the task", notifyMainAgent: true,
 		dispatchBaseFingerprint: "[]", mainContextState: "will-squash", status: "running",
 		startedAt: Date.now(), turnStartedAt: Date.now(), activeTools: new Map(),
 		toolUses: 0, turnCount: 0, responseText: "", conversationMessages: [],

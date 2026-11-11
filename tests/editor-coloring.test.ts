@@ -40,11 +40,11 @@ function describeTokens(
 
 describe("scanAgentCommandLine — shared semantic representation", () => {
 	test("classifies leading options and their values with source spans", () => {
-		const line = "/agent -m gpt56s --thinking high fix the bug";
+		const line = "/side -m gpt56s --thinking high fix the bug";
 		const scan = scanAgentCommandLine(line);
 		assert.ok(scan);
-		assert.equal(scan.command, "agent");
-		assert.equal(scan.commandEnd, "/agent".length);
+		assert.equal(scan.command, "side");
+		assert.equal(scan.commandEnd, "/side".length);
 		assert.deepEqual(describeTokens(line), [
 			{ semantic: "option", text: "-m", option: "model" },
 			{ semantic: "value", text: "gpt56s", option: "model" },
@@ -54,54 +54,55 @@ describe("scanAgentCommandLine — shared semantic representation", () => {
 	});
 
 	test("classifies options and their values after the prose flip as misplaced", () => {
-		assert.deepEqual(describeTokens("/agent fix the bug -m gpt56s soon"), [
+		assert.deepEqual(describeTokens("/side fix the bug -m gpt56s soon"), [
 			{ semantic: "misplaced-option", text: "-m", option: "model" },
 			{ semantic: "misplaced-value", text: "gpt56s", option: "model" },
 		]);
 	});
 
 	test("a misplaced value that is itself a recognized option gets its own misplaced-option token", () => {
-		assert.deepEqual(describeTokens("/agent fix --thinking --offline now"), [
+		assert.deepEqual(describeTokens("/side fix --thinking --offline now"), [
 			{ semantic: "misplaced-option", text: "--thinking", option: "thinking" },
 			{ semantic: "misplaced-option", text: "--offline", option: "offline" },
 		]);
 	});
 
 	test("classifies blocked options, including a blocked option's value", () => {
-		assert.deepEqual(describeTokens("/agent --continue fix it"), [
+		assert.deepEqual(describeTokens("/side --continue fix it"), [
 			{ semantic: "blocked", text: "--continue", option: "continue" },
 		]);
-		assert.deepEqual(describeTokens("/agent --theme ./theme.json fix it"), [
+		assert.deepEqual(describeTokens("/side --theme ./theme.json fix it"), [
 			{ semantic: "blocked", text: "--theme", option: "theme" },
 			{ semantic: "blocked", text: "./theme.json", option: "theme" },
 		]);
 	});
 
 	test("a quoted value span keeps its surrounding quotes", () => {
-		assert.deepEqual(describeTokens('/agent --system-prompt "be terse" go'), [
+		assert.deepEqual(describeTokens('/side --system-prompt "be terse" go'), [
 			{ semantic: "option", text: "--system-prompt", option: "system-prompt" },
 			{ semantic: "value", text: '"be terse"', option: "system-prompt" },
 		]);
 	});
 
 	test("quoted and escaped prose never produces semantic tokens", () => {
-		assert.deepEqual(describeTokens('/agent "do -m x" now'), []);
-		assert.deepEqual(describeTokens("/agent \\-m hi"), []);
+		assert.deepEqual(describeTokens('/side "do -m x" now'), []);
+		assert.deepEqual(describeTokens("/side \\-m hi"), []);
 	});
 
 	test("recognizes only exact agent command lines", () => {
 		assert.equal(scanAgentCommandLine("hello -m x"), undefined);
-		assert.equal(scanAgentCommandLine("/agents fix it"), undefined);
-		assert.equal(scanAgentCommandLine("/agent-isolated fix it"), undefined);
+		assert.equal(scanAgentCommandLine("/sides fix it"), undefined);
+		assert.equal(scanAgentCommandLine("/side-isolated fix it"), undefined);
+		assert.equal(scanAgentCommandLine("/agent fix it"), undefined, "The old /agent command is no longer this extension's");
 	});
 });
 
 describe("computeAgentColorSpans — theme-variable palette", () => {
 	test("maps semantic tokens onto theme colors", () => {
-		assert.deepEqual(computeAgentColorSpans("/agent -m gpt56s fix"), [
-			{ start: 0, end: 6, color: "accent" },
-			{ start: 7, end: 9, color: "syntaxType" },
-			{ start: 10, end: 16, color: "syntaxString" },
+		assert.deepEqual(computeAgentColorSpans("/side -m gpt56s fix"), [
+			{ start: 0, end: 5, color: "accent" },
+			{ start: 6, end: 8, color: "syntaxType" },
+			{ start: 9, end: 15, color: "syntaxString" },
 		]);
 	});
 
@@ -116,23 +117,23 @@ describe("editor semantic coloring", () => {
 		const harness = await createEditorHarness(undefined, [], [], [], {
 			themeFg: createMarkingThemeFg(usedColors),
 		});
-		harness.type("/agent --thinking high fix it");
+		harness.type("/side --thinking high fix it");
 		const rendered = harness.renderRaw();
-		const expected = `${colored("accent", "/agent")} ${colored("syntaxType", "--thinking")} ${colored("syntaxString", "high")} fix it${CURSOR_OPEN} ${CURSOR_CLOSE}`;
+		const expected = `${colored("accent", "/side")} ${colored("syntaxType", "--thinking")} ${colored("syntaxString", "high")} fix it${CURSOR_OPEN} ${CURSOR_CLOSE}`;
 		assert.ok(
 			rendered.includes(expected),
 			`Expected semantic coloring with plain prose.\nRendered:\n${JSON.stringify(rendered)}`,
 		);
-		assert.equal(harness.editor.getText(), "/agent --thinking high fix it");
+		assert.equal(harness.editor.getText(), "/side --thinking high fix it");
 	});
 
 	test("paints options and values typed after the prose flip as errors", async () => {
 		const harness = await createEditorHarness(undefined, [], [], [], {
 			themeFg: createMarkingThemeFg(new Set()),
 		});
-		harness.type("/agent fix -m gpt56s then");
+		harness.type("/side fix -m gpt56s then");
 		const rendered = harness.renderRaw();
-		const expected = `${colored("accent", "/agent")} fix ${colored("error", "-m")} ${colored("error", "gpt56s")} then`;
+		const expected = `${colored("accent", "/side")} fix ${colored("error", "-m")} ${colored("error", "gpt56s")} then`;
 		assert.ok(
 			rendered.includes(expected),
 			`Expected misplaced option and value to render as errors.\nRendered:\n${JSON.stringify(rendered)}`,
@@ -144,7 +145,7 @@ describe("editor semantic coloring", () => {
 			const harness = await createEditorHarness(undefined, [], [], [], {
 				themeFg: createMarkingThemeFg(new Set()),
 			});
-			harness.type(`/agent ${option} fix`);
+			harness.type(`/side ${option} fix`);
 			assert.ok(harness.renderRaw().includes(`${colored("error", option)} fix`));
 		}
 	});
@@ -155,7 +156,7 @@ describe("editor semantic coloring", () => {
 			const harness = await createEditorHarness(undefined, models, [], [], {
 				themeFg: createMarkingThemeFg(new Set()),
 			});
-			harness.type(`/agent -m ${value} fix`);
+			harness.type(`/side -m ${value} fix`);
 			assert.ok(harness.renderRaw().includes(`${colored("syntaxString", value)} fix`));
 		}
 
@@ -163,7 +164,7 @@ describe("editor semantic coloring", () => {
 			const harness = await createEditorHarness(undefined, models, [], [], {
 				themeFg: createMarkingThemeFg(new Set()),
 			});
-			harness.type(`/agent -m ${value} fix`);
+			harness.type(`/side -m ${value} fix`);
 			assert.ok(
 				harness.renderRaw().includes(`${colored("error", value)} fix`),
 				`Expected the non-exact model ${value} to use the error color`,
@@ -175,7 +176,7 @@ describe("editor semantic coloring", () => {
 		const harness = await createEditorHarness(undefined, [], [], [], {
 			themeFg: createMarkingThemeFg(new Set()),
 		});
-		harness.type("/agent --thinking ultra fix");
+		harness.type("/side --thinking ultra fix");
 		assert.ok(harness.renderRaw().includes(`${colored("error", "ultra")} fix`));
 	});
 
@@ -191,7 +192,7 @@ describe("editor semantic coloring", () => {
 			const harness = await createEditorHarness(undefined, models, tools, [], {
 				themeFg: createMarkingThemeFg(new Set()),
 			});
-			harness.type(`/agent ${input} fix`);
+			harness.type(`/side ${input} fix`);
 			assert.ok(harness.renderRaw().includes(`${colored(color, value)} fix`));
 		}
 	});
@@ -212,7 +213,7 @@ describe("editor semantic coloring", () => {
 			const harness = await createEditorHarness(undefined, [], tools, [], {
 				themeFg: createMarkingThemeFg(new Set()),
 			});
-			harness.type(`/agent ${input} fix`);
+			harness.type(`/side ${input} fix`);
 			assert.ok(
 				harness.renderRaw().includes(`${colored(color, value)} fix`),
 				`Expected ${input} to paint its value as ${color}. Rendered:\n${harness.renderRaw()}`,
@@ -224,7 +225,7 @@ describe("editor semantic coloring", () => {
 		const harness = await createEditorHarness(undefined, [], [], [], {
 			themeFg: createMarkingThemeFg(new Set()),
 		});
-		harness.type('/agent --system-prompt "be terse" go');
+		harness.type('/side --system-prompt "be terse" go');
 		assert.ok(harness.renderRaw().includes(`${colored("syntaxString", '"be terse"')} go`));
 	});
 
@@ -232,7 +233,7 @@ describe("editor semantic coloring", () => {
 		const harness = await createEditorHarness(undefined, [], [], [], {
 			themeFg: createMarkingThemeFg(new Set()),
 		});
-		harness.type("/agent --thinking");
+		harness.type("/side --thinking");
 		harness.moveCursorLeft(3);
 		const rendered = harness.renderRaw();
 		const expected = `${colored("syntaxType", "--think")}${CURSOR_OPEN}i${CURSOR_CLOSE}${colored("syntaxType", "ng")}`;
@@ -246,7 +247,7 @@ describe("editor semantic coloring", () => {
 		const harness = await createEditorHarness(undefined, [], [], [], {
 			themeFg: createMarkingThemeFg(new Set()),
 		});
-		harness.type("/agent --system-prompt averyveryverylongpromptvalue123456 fix it");
+		harness.type("/side --system-prompt averyveryverylongpromptvalue123456 fix it");
 		const rendered = harness.renderRaw(24);
 		const valueFragments = rendered.split(SGR_OPEN.syntaxString).length - 1;
 		assert.ok(
@@ -272,7 +273,7 @@ describe("editor semantic coloring", () => {
 			[],
 			{ themeFg: createMarkingThemeFg(usedColors) },
 		);
-		harness.type("/agent --continue -m gpt56s fix -t x");
+		harness.type("/side --continue -m gpt56s fix -t x");
 		harness.renderRaw();
 		assert.deepEqual([...usedColors].sort(), ["accent", "error", "syntaxString", "syntaxType"]);
 	});
@@ -285,10 +286,10 @@ describe("editor semantic coloring", () => {
 			[],
 			{ themeFg: createMarkingThemeFg(new Set()) },
 		);
-		harness.type("/agent -");
+		harness.type("/side -");
 		await harness.waitForAutocomplete();
 		harness.press("\t");
-		assert.equal(harness.editor.getText(), "/agent -m ");
+		assert.equal(harness.editor.getText(), "/side -m ");
 		assert.ok(harness.renderRaw().includes(colored("syntaxType", "-m")));
 	});
 });

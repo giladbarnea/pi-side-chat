@@ -70,12 +70,12 @@ function renderRunningHeader(
 	const runningAgent = {
 		id: "user-1",
 		sessionId: "session-1",
-		command: "agent",
+		command: "side",
 		inheritedContext: true,
 		model: "provider/model",
 		modelLabel: "model",
 		task: "plan the migration",
-		invocation: "/agent plan the migration",
+		invocation: "/side plan the migration",
 		notifyMainAgent: false,
 		dispatchBaseFingerprint: "[]",
 		mainContextState: overrides.mainContextState ?? "separate",
@@ -115,7 +115,7 @@ function renderRunningHeader(
 
 	widget.setUI(ui);
 	widget.update();
-	return component?.render(120).find((line) => line.includes("/agent")) ?? "";
+	return component?.render(120).find((line) => line.includes("/side")) ?? "";
 }
 
 describe("UserAgentWidget context meter", () => {
@@ -123,7 +123,7 @@ describe("UserAgentWidget context meter", () => {
 		const header = renderRunningHeader({ tokens: 100_000, contextWindow: 200_000, percent: 50 });
 		const meter = renderContextMeter(50, meterTheme);
 
-		expect(header.indexOf("/agent")).toBeLessThan(header.indexOf(meter));
+		expect(header.indexOf("/side")).toBeLessThan(header.indexOf(meter));
 		expect(header.indexOf(meter)).toBeLessThan(header.indexOf("plan the migration"));
 	});
 
@@ -168,12 +168,12 @@ describe("UserAgentWidget steering", () => {
 		const runningAgent = {
 			id: "user-1",
 			sessionId: "session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "plan the migration",
-			invocation: "/agent plan the migration",
+			invocation: "/side plan the migration",
 			notifyMainAgent: false,
 			dispatchBaseFingerprint: "[]",
 			status: "running",
@@ -237,12 +237,12 @@ describe("UserAgentWidget steering", () => {
 		const runningAgent = {
 			id: "user-1",
 			sessionId: "session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "plan the migration",
-			invocation: "/agent plan the migration",
+			invocation: "/side plan the migration",
 			notifyMainAgent: false,
 			dispatchBaseFingerprint: "[]",
 			status: "running",
@@ -386,12 +386,12 @@ function openStreamingViewer(): StreamingViewer {
 	const runningAgent = {
 		id: "user-1",
 		sessionId: "session-1",
-		command: "agent",
+		command: "side",
 		inheritedContext: true,
 		model: "provider/model",
 		modelLabel: "model",
 		task: "plan the migration",
-		invocation: "/agent plan the migration",
+		invocation: "/side plan the migration",
 		notifyMainAgent: false,
 		dispatchBaseFingerprint: "[]",
 		status: "running",
@@ -459,12 +459,12 @@ describe("UserAgentWidget completed overlay", () => {
 		const completedAgent = {
 			id: "user-1",
 			sessionId: "session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: false,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "finish the task",
-			invocation: "/agent -i finish the task",
+			invocation: "/side -i finish the task",
 			notifyMainAgent: false,
 			dispatchBaseFingerprint: "[]",
 			mainContextState: "separate",
@@ -484,7 +484,7 @@ describe("UserAgentWidget completed overlay", () => {
 			content: "<user_agent>finished response</user_agent>",
 			display: false,
 			details: {
-				command: "agent",
+				command: "side",
 				inheritedContext: false,
 				model: "provider/model",
 				modelLabel: "model",
@@ -552,13 +552,13 @@ describe("UserAgentWidget completed overlay", () => {
 		expect(viewer.render(100).join("\n")).not.toContain("s squash");
 		viewer.handleInput?.("\x1b");
 		await Promise.resolve();
-		expect(widgetComponent.render(100).join("\n")).toContain("/agent");
+		expect(widgetComponent.render(100).join("\n")).toContain("/side");
 
 		terminalInput("\r");
 		if (!viewer) throw new Error("Completed agent viewer did not reopen");
 		viewer.handleInput?.("d");
 		expect(viewer.render(100).join("\n")).toContain("d again to confirm");
-		expect(widgetComponent.render(100).join("\n")).toContain("/agent");
+		expect(widgetComponent.render(100).join("\n")).toContain("/side");
 		expect(detachedSessionIds, "Expected no announcement before the second d").toEqual([]);
 		viewer.handleInput?.("d");
 		await Promise.resolve();
@@ -619,7 +619,7 @@ function buildIdleHarness(
 		content: "<user_agent>fine how are you?</user_agent>",
 		display: false,
 		details: {
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
@@ -630,12 +630,12 @@ function buildIdleHarness(
 	const agent = {
 		id: "user-1",
 		sessionId: "session-1",
-		command: "agent",
+		command: "side",
 		inheritedContext: true,
 		model: "provider/model",
 		modelLabel: "model",
 		task: "hello how are you?",
-		invocation: "/agent hello how are you?",
+		invocation: "/side hello how are you?",
 		notifyMainAgent: false,
 		dispatchBaseFingerprint: "[]",
 		mainContextState: "separate",
@@ -833,7 +833,7 @@ describe("UserAgentWidget idle (turn-complete, alive) agents", () => {
 		failedMessage.details.ok = false;
 		failedHarness.widget.addCompleted(failedHarness.agent, failedMessage, { squashable: false });
 		const header = (harness: IdleHarness) =>
-			harness.widgetComponent().render(120).find((line) => line.includes("/agent")) ?? "";
+			harness.widgetComponent().render(120).find((line) => line.includes("/side")) ?? "";
 
 		expect(header(runningHarness), "Expected a live row to name its running state").toMatch(
 			/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏].*running/,
@@ -853,8 +853,8 @@ describe("UserAgentWidget idle (turn-complete, alive) agents", () => {
 		const harness = buildIdleHarness();
 		const lines = harness.widgetComponent().render(120);
 
-		expect(lines[0]).toContain("✓ User agents");
-		const header = lines.find((line) => line.includes("/agent")) ?? "";
+		expect(lines[0]).toContain("✓ Side chats");
+		const header = lines.find((line) => line.includes("/side")) ?? "";
 		expect(header).toContain("◉");
 		expect(header).not.toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/);
 		expect(header).toContain("3.0s");
@@ -879,12 +879,12 @@ describe("UserAgentWidget idle (turn-complete, alive) agents", () => {
 		const harness = buildIdleHarness({ tokens: 100_000, contextWindow: 200_000, percent: 50 });
 		const meter = renderContextMeter(50, meterTheme);
 		const widgetHeader =
-			harness.widgetComponent().render(100).find((line) => line.includes("/agent")) ?? "";
+			harness.widgetComponent().render(100).find((line) => line.includes("/side")) ?? "";
 		harness.openViewer();
 		const overlayHeader =
-			harness.viewer().render(100).find((line) => line.includes("/agent")) ?? "";
+			harness.viewer().render(100).find((line) => line.includes("/side")) ?? "";
 
-		expect(widgetHeader.indexOf("/agent")).toBeLessThan(widgetHeader.indexOf(meter));
+		expect(widgetHeader.indexOf("/side")).toBeLessThan(widgetHeader.indexOf(meter));
 		expect(widgetHeader.indexOf(meter)).toBeLessThan(
 			widgetHeader.indexOf("hello how are you?"),
 		);
@@ -895,7 +895,7 @@ describe("UserAgentWidget idle (turn-complete, alive) agents", () => {
 		const harness = buildIdleHarness({ tokens: 25_800, contextWindow: 200_000, percent: 12.9 });
 		harness.openViewer();
 		const overlayHeader =
-			harness.viewer().render(100).find((line) => line.includes("/agent")) ?? "";
+			harness.viewer().render(100).find((line) => line.includes("/side")) ?? "";
 
 		expect(overlayHeader).toContain("model · ▁12% · idle");
 		expect(overlayHeader).not.toContain("▁ 12%");
@@ -905,7 +905,7 @@ describe("UserAgentWidget idle (turn-complete, alive) agents", () => {
 		const harness = buildIdleHarness();
 		harness.openViewer();
 		const overlayHeader =
-			harness.viewer().render(100).find((line) => line.includes("/agent")) ?? "";
+			harness.viewer().render(100).find((line) => line.includes("/side")) ?? "";
 
 		expect(overlayHeader).toContain(harness.agent.sessionId);
 	});
@@ -988,7 +988,7 @@ describe("UserAgentWidget idle (turn-complete, alive) agents", () => {
 		expect(viewer.render(100).join("\n")).toContain("squashed messages into context");
 		snapshotRow = harness.widgetComponent().render(120).join("\n");
 		expect(snapshotRow).toContain("squashed messages into context");
-		expect(snapshotRow).toContain("/agent");
+		expect(snapshotRow).toContain("/side");
 		expect(snapshotRow).toContain("3.0s");
 		expect(snapshotRow).not.toContain("1m");
 	});
@@ -1016,7 +1016,7 @@ describe("UserAgentWidget idle (turn-complete, alive) agents", () => {
 
 	test("d d at the widget level retires an idle agent", () => {
 		const harness = buildIdleHarness();
-		expect(harness.widgetComponent().render(120).join("\n")).toContain("/agent");
+		expect(harness.widgetComponent().render(120).join("\n")).toContain("/side");
 
 		harness.sendWidgetKey("\x1b[B");
 		harness.sendWidgetKey("d");
@@ -1095,12 +1095,12 @@ function secondaryAgent(
 	return {
 		id: `user-${sequence}`,
 		sessionId: `session-${sequence}`,
-		command: "agent",
+		command: "side",
 		inheritedContext: true,
 		model: "provider/model",
 		modelLabel: "model",
 		task: `secondary task ${sequence}`,
-		invocation: `/agent secondary task ${sequence}`,
+		invocation: `/side secondary task ${sequence}`,
 		notifyMainAgent: false,
 		dispatchBaseFingerprint: "[]",
 		mainContextState: "separate",
@@ -1156,7 +1156,7 @@ describe("UserAgentWidget rebase alongside other agents", () => {
 		expect(
 			viewer.render(100).join("\n"),
 			"Expected a confirmation before detaching sibling sessions",
-		).toContain("Rebase will detach 1 other agent session. r again to confirm");
+		).toContain("Rebase will detach 1 other side chat session. r again to confirm");
 		expect(delivered).toEqual([]);
 		expect(harness.detachedSessionIds).toEqual([]);
 
@@ -1213,7 +1213,7 @@ describe("UserAgentWidget rebase refusal warning", () => {
 
 		viewer.handleInput?.("r");
 
-		expect(viewer.render(100).join("\n")).toContain("Can't rebase: another agent is mid-turn");
+		expect(viewer.render(100).join("\n")).toContain("Can't rebase: another side chat is mid-turn");
 	});
 
 	test("r with nothing deliverable stays silent", () => {
@@ -1329,7 +1329,7 @@ describe("UserAgentWidget selected-row action parity", () => {
 		harness.sendWidgetKey("r");
 		expect(delivered).toEqual([]);
 		expect(harness.widgetComponent().render(140).join("\n")).toContain(
-			"Rebase will detach 1 other agent session. r again to confirm",
+			"Rebase will detach 1 other side chat session. r again to confirm",
 		);
 
 		harness.sendWidgetKey("r");
@@ -1395,7 +1395,7 @@ describe("UserAgentWidget herdr", () => {
 		expect(rendered).toContain("herdr pane w1:p3");
 		expect(rendered, "Expected the snapshot to keep the last response").toContain("fine how are you?");
 		expect(rendered, "Expected the widget to hand focus back to the editor").toContain(
-			"←/↓ select agent",
+			"←/↓ select side chat",
 		);
 		expect(rendered).not.toContain("h herdr");
 	});
@@ -1415,7 +1415,7 @@ describe("UserAgentWidget herdr", () => {
 		expect(harness.agent.status).toBe("posted");
 		const rendered = harness.widgetComponent().render(140).join("\n");
 		expect(rendered).toContain("herdr pane w2:p1");
-		expect(rendered).toContain("←/↓ select agent");
+		expect(rendered).toContain("←/↓ select side chat");
 	});
 
 	test("outside herdr, h is not offered and explains why on press", async () => {
@@ -1441,7 +1441,7 @@ describe("UserAgentWidget herdr", () => {
 		harness.sendWidgetKey("h");
 		await settle();
 		expect(harness.widgetComponent().render(140).join("\n")).toContain(
-			"Can't open in herdr: the agent is mid-turn",
+			"Can't open in herdr: the side chat is mid-turn",
 		);
 
 		harness.agent.status = "idle";
@@ -1506,7 +1506,7 @@ describe("UserAgentWidget herdr", () => {
 		harness.widget.addHerdrDispatch(harness.agent, "w1:p4");
 
 		const lines = harness.widgetComponent().render(140);
-		const header = lines.find((line) => line.includes("/agent") && line.includes("w1:p4")) ?? "";
+		const header = lines.find((line) => line.includes("/side") && line.includes("w1:p4")) ?? "";
 		expect(header).toContain("⧉");
 		expect(header).toContain("herdr pane w1:p4");
 		expect(header, "Expected no duration for an agent that never ran here").not.toContain("0.0s");
@@ -1547,12 +1547,12 @@ describe("UserAgentWidget attach queries", () => {
 		const runningAgent = {
 			id: "user-1",
 			sessionId: "0199aaaa-8b1a-7c3d-9e05-6a2f18d7b4ce",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "plan the migration",
-			invocation: "/agent plan the migration",
+			invocation: "/side plan the migration",
 			notifyMainAgent: false,
 			dispatchBaseFingerprint: "[]",
 			mainContextState: "separate",
@@ -1587,7 +1587,7 @@ describe("UserAgentWidget attach queries", () => {
 				display: false,
 				details: {
 					agentId: "user-2",
-					command: "agent",
+					command: "side",
 					inheritedContext: true,
 					model: "provider/model",
 					modelLabel: "model",

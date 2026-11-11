@@ -1,7 +1,7 @@
-# `/agent` command-line parser — specification
+# `/side` command-line parser — specification
 
 This is the authoritative spec for how the shared command-line engine interprets
-submitted `/agent` input and pre-submit editor input. Runtime parsing
+submitted `/side` input and pre-submit editor input. Runtime parsing
 and eager autocomplete both derive option names, arity, aliases, roles, and value domains
 from the declaration in `command-line.ts`.
 
@@ -95,7 +95,7 @@ Value examples:
 `-c`/`--continue`, `-p`/`--print`, `--theme <path>`, `--models`, `--export`, `--list-models`,
 `--help`, `-v`/`--version`. (`-h` is the extension's herdr option, §3a.)
 Appearing in **args mode** (leading) → hard **error**:
-`"/agent does not support <opt>; it would disrupt the background agent run."`
+`"/side does not support <opt>; it would disrupt the background side chat."`
 
 Blocked options stay declared so prose advisories remain truthful. In particular, singular
 `--theme` is declared value-taking: `do it --theme ./theme.json` warns about
@@ -122,9 +122,9 @@ While in prose mode, if an **unescaped, unquoted** token is a **recognized** opt
 - Warnings never change the prose text.
 
 Worked examples:
-- `hello world -m gpt56s` → task = whole string; warn `-m gpt56s`, suggest `/agent -m gpt56s hello …`.
+- `hello world -m gpt56s` → task = whole string; warn `-m gpt56s`, suggest `/side -m gpt56s hello …`.
 - `-m gpt56s hello --thinking high world` → `-m gpt56s` parsed; task = `hello --thinking high world`;
-  warn `--thinking high`, suggest `/agent --thinking high hello …`.
+  warn `--thinking high`, suggest `/side --thinking high hello …`.
 - `-g badflagname hello world` → `-g` unknown → task = whole string; **no** warning.
 - `hello world -g badflagname` → task = whole string; **no** warning.
 - `--doesnotexist this is my message` → `--doesnotexist` unknown → task = whole string; **no** warning.
@@ -185,7 +185,7 @@ recognition and arity come from the shared declaration.
 
 ## 10. Pre-submit cursor analysis and eager autocomplete
 
-Cursor analysis recognizes only exact `/agent` command lines. It
+Cursor analysis recognizes only exact `/side` command lines. It
 preserves the active token's source span and reports either an option fragment, a value
 fragment with its owning declaration, or no completion once parsing has entered terminal
 prose. Quoted and backslash-escaped dashes therefore never reopen option completion.
@@ -263,7 +263,7 @@ Prose itself is never tokenized; unknown dash-words, quoted spans, and escaped w
 plain. `parseAgentCommand` is a thin projection over the scan (blocked → hard error, blank
 prose → usage error), so parsing and coloring cannot drift.
 
-`scanAgentCommandLine` recognizes the same exact `/agent` prefix as
+`scanAgentCommandLine` recognizes the same exact `/side` prefix as
 cursor analysis (§10) and shifts token spans into editor-line coordinates.
 
 The editor coloring layer (`editor-coloring.ts`) maps token semantics onto Pi theme

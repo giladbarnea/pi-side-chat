@@ -6,10 +6,10 @@ import { join } from "node:path";
 import { createEditorHarness } from "./editor-harness.ts";
 
 describe("agent command editor autocomplete", () => {
-	test("typing /agent - visibly opens the option menu without Tab", async () => {
+	test("typing /side - visibly opens the option menu without Tab", async () => {
 		const harness = await createEditorHarness();
 
-		harness.type("/agent -");
+		harness.type("/side -");
 		await harness.waitForAutocomplete();
 		const rendered = harness.render();
 
@@ -28,7 +28,7 @@ describe("agent command editor autocomplete", () => {
 	test("rapid repeated dash triggers settle on the current non-empty option menu", async () => {
 		const harness = await createEditorHarness();
 
-		harness.type("/agent -");
+		harness.type("/side -");
 		for (let attempt = 0; attempt < 10; attempt += 1) {
 			harness.press("\x7f");
 			harness.type("-");
@@ -38,7 +38,7 @@ describe("agent command editor autocomplete", () => {
 
 		assert.equal(
 			harness.editor.getText(),
-			"/agent -",
+			"/side -",
 			`Expected rapid edits to retain the current input. Got: ${harness.editor.getText()}`,
 		);
 		assert.match(
@@ -51,20 +51,20 @@ describe("agent command editor autocomplete", () => {
 	test("offers and accepts both squash option spellings", async () => {
 		for (const squashOption of ["-s", "--squash"]) {
 			const harness = await createEditorHarness();
-			harness.type(`/agent ${squashOption}`);
+			harness.type(`/side ${squashOption}`);
 			await harness.waitForRender((rendered) => rendered.includes("Squash the completed result"));
 			harness.press("\t");
 
 			assert.equal(
 				harness.editor.getText(),
-				`/agent ${squashOption} `,
+				`/side ${squashOption} `,
 				`Expected autocomplete to accept ${squashOption}`,
 			);
 		}
 	});
 
 	test("task prose, quoted dashes, and escaped dashes never reopen option autocomplete", async () => {
-		for (const text of ["/agent explain -", '/agent "-"', "/agent \\-"]) {
+		for (const text of ["/side explain -", '/side "-"', "/side \\-"]) {
 			const harness = await createEditorHarness();
 			harness.type(text);
 			await harness.waitForAutocompleteToRemainHidden();
@@ -80,7 +80,7 @@ describe("agent command editor autocomplete", () => {
 	test("blocked options remain absent while an effective option with the same prefix is visible", async () => {
 		const harness = await createEditorHarness();
 
-		harness.type("/agent --ex");
+		harness.type("/side --ex");
 		await harness.waitForRender((rendered) => rendered.includes("--exclude-tools <tools>"));
 		const rendered = harness.render();
 
@@ -93,7 +93,7 @@ describe("agent command editor autocomplete", () => {
 
 	test("--theme is absent while --no-themes remains completable", async () => {
 		const unsupportedHarness = await createEditorHarness();
-		unsupportedHarness.type("/agent --the");
+		unsupportedHarness.type("/side --the");
 		await unsupportedHarness.waitForAutocompleteToRemainHidden();
 		assert.equal(
 			unsupportedHarness.editor.isShowingAutocomplete(),
@@ -102,7 +102,7 @@ describe("agent command editor autocomplete", () => {
 		);
 
 		const supportedHarness = await createEditorHarness();
-		supportedHarness.type("/agent --no-th");
+		supportedHarness.type("/side --no-th");
 		await supportedHarness.waitForRender((rendered) => rendered.includes("--no-themes"));
 		assert.match(
 			supportedHarness.render(),
@@ -115,19 +115,19 @@ describe("agent command editor autocomplete", () => {
 		const harness = await createEditorHarness();
 		const suffix = " explain it";
 
-		harness.type(`/agent --thi${suffix}`);
+		harness.type(`/side --thi${suffix}`);
 		harness.moveCursorLeft(suffix.length);
 		harness.press("\t");
-		await harness.waitForRender((rendered) => rendered.includes("/agent --thinking explain it"));
+		await harness.waitForRender((rendered) => rendered.includes("/side --thinking explain it"));
 		assert.equal(
 			harness.editor.getText(),
-			"/agent --thinking explain it",
+			"/side --thinking explain it",
 			"Expected Tab to replace the active option fragment",
 		);
 		await harness.waitForRender((rendered) => rendered.includes("off"));
 		harness.press("\t");
 
-		const expected = "/agent --thinking off explain it";
+		const expected = "/side --thinking off explain it";
 		assert.equal(
 			harness.editor.getText(),
 			expected,
@@ -135,7 +135,7 @@ describe("agent command editor autocomplete", () => {
 		);
 		assert.equal(
 			harness.editor.getCursor().col,
-			"/agent --thinking off ".length,
+			"/side --thinking off ".length,
 			"Expected the cursor before the preserved suffix",
 		);
 	});
@@ -157,34 +157,34 @@ describe("agent command editor autocomplete", () => {
 		};
 
 		const typedOption = await createEditorHarness();
-		typedOption.type(`/agent ${prompt}`);
+		typedOption.type(`/side ${prompt}`);
 		typedOption.moveCursorLeft(prompt.length);
 		typedOption.type("-i ");
-		await expectClosedThenSubmit(typedOption, `/agent -i ${prompt}`);
+		await expectClosedThenSubmit(typedOption, `/side -i ${prompt}`);
 
 		const acceptedOption = await createEditorHarness();
-		acceptedOption.type(`/agent ${prompt}`);
+		acceptedOption.type(`/side ${prompt}`);
 		acceptedOption.moveCursorLeft(prompt.length + 1);
 		acceptedOption.type(" -i");
 		await acceptedOption.waitForRender((rendered) => rendered.includes("Start without"));
 		acceptedOption.press("\r");
-		assert.equal(acceptedOption.editor.getCursor().col, "/agent -i ".length);
-		await expectClosedThenSubmit(acceptedOption, `/agent -i ${prompt}`);
+		assert.equal(acceptedOption.editor.getCursor().col, "/side -i ".length);
+		await expectClosedThenSubmit(acceptedOption, `/side -i ${prompt}`);
 
 		const acceptedValue = await createEditorHarness();
-		acceptedValue.type(`/agent --thi ${prompt}`);
+		acceptedValue.type(`/side --thi ${prompt}`);
 		acceptedValue.moveCursorLeft(prompt.length + 1);
 		acceptedValue.press("\t");
 		await acceptedValue.waitForRender((rendered) => rendered.includes("off"));
 		acceptedValue.press("\r");
-		assert.equal(acceptedValue.editor.getCursor().col, "/agent --thinking off ".length);
-		await expectClosedThenSubmit(acceptedValue, `/agent --thinking off ${prompt}`);
+		assert.equal(acceptedValue.editor.getCursor().col, "/side --thinking off ".length);
+		await expectClosedThenSubmit(acceptedValue, `/side --thinking off ${prompt}`);
 
 		const editedPrompt = await createEditorHarness();
-		editedPrompt.type(`/agent -i x${prompt}`);
+		editedPrompt.type(`/side -i x${prompt}`);
 		editedPrompt.moveCursorLeft(prompt.length);
 		editedPrompt.press("\x7f");
-		await expectClosedThenSubmit(editedPrompt, `/agent -i ${prompt}`);
+		await expectClosedThenSubmit(editedPrompt, `/side -i ${prompt}`);
 	});
 
 	for (const [key, input] of [
@@ -196,20 +196,20 @@ describe("agent command editor autocomplete", () => {
 			const harness = await createEditorHarness();
 			const submitted: string[] = [];
 			harness.editor.onSubmit = (text) => submitted.push(text);
-			harness.type("/agent  explain it");
+			harness.type("/side  explain it");
 			harness.moveCursorLeft(" explain it".length);
 			harness.type("--t");
 			await harness.waitForRender((rendered) => rendered.includes("--thinking <level>"));
-			assert.equal(harness.editor.getCursor().col, "/agent --t".length);
+			assert.equal(harness.editor.getCursor().col, "/side --t".length);
 
 			harness.press(input);
-			assert.ok(harness.editor.getCursor().col > "/agent --t ".length);
+			assert.ok(harness.editor.getCursor().col > "/side --t ".length);
 			const menuAfterJump = harness.editor.isShowingAutocomplete();
 			harness.press("\r");
 
 			assert.deepEqual(
 				{ menuAfterJump, submitted, remainingText: harness.editor.getText() },
-				{ menuAfterJump: false, submitted: ["/agent --t explain it"], remainingText: "" },
+				{ menuAfterJump: false, submitted: ["/side --t explain it"], remainingText: "" },
 				`Expected ${key} to dismiss the stale option menu before immediate Enter`,
 			);
 			await harness.waitForAutocompleteToRemainHidden();
@@ -220,15 +220,15 @@ describe("agent command editor autocomplete", () => {
 		const harness = await createEditorHarness();
 		const submitted: string[] = [];
 		harness.editor.onSubmit = (text) => submitted.push(text);
-		harness.type("/agent --thi");
+		harness.type("/side --thi");
 		await harness.waitForRender((rendered) => rendered.includes("--thinking <level>"));
 		harness.moveCursorLeft(1);
 		harness.press("\x1b[F");
 		harness.press("\r");
-		assert.equal(harness.editor.getText(), "/agent --thinking ");
+		assert.equal(harness.editor.getText(), "/side --thinking ");
 		await harness.waitForRender((rendered) => rendered.includes("off"));
 		harness.press("\r");
-		assert.equal(harness.editor.getText(), "/agent --thinking off ");
+		assert.equal(harness.editor.getText(), "/side --thinking off ");
 		assert.deepEqual(submitted, [], "Expected Enter to accept the option and value, not submit");
 	});
 
@@ -240,13 +240,13 @@ describe("agent command editor autocomplete", () => {
 			const harness = await createEditorHarness(cwd);
 			const submitted: string[] = [];
 			harness.editor.onSubmit = (text) => submitted.push(text);
-			harness.type("/agent explain ./fix");
+			harness.type("/side explain ./fix");
 			harness.press("\t");
 			await harness.waitForRender((rendered) => rendered.includes("fixture.ts"));
 			harness.moveCursorLeft(1);
 			harness.press("\x1b[F");
 			harness.press("\r");
-			assert.equal(harness.editor.getText(), "/agent explain ./fixture.ts");
+			assert.equal(harness.editor.getText(), "/side explain ./fixture.ts");
 			assert.deepEqual(submitted, [], "Expected native file completion, not submission");
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
@@ -256,14 +256,14 @@ describe("agent command editor autocomplete", () => {
 	test("accepting --thinking chains into its value menu and completes with one trailing space", async () => {
 		const harness = await createEditorHarness();
 
-		harness.type("/agent --thi");
+		harness.type("/side --thi");
 		await harness.waitForRender(
 			(rendered) => rendered.includes("--thinking <level>") && !rendered.includes("-m <model>"),
 		);
 		harness.press("\t");
 		assert.equal(
 			harness.editor.getText(),
-			"/agent --thinking ",
+			"/side --thinking ",
 			`Expected the option edit before value chaining. Got: ${harness.editor.getText()}`,
 		);
 
@@ -275,7 +275,7 @@ describe("agent command editor autocomplete", () => {
 		);
 		harness.press("\t");
 
-		const expected = "/agent --thinking high ";
+		const expected = "/side --thinking high ";
 		assert.equal(
 			harness.editor.getText(),
 			expected,
@@ -291,13 +291,13 @@ describe("agent command editor autocomplete", () => {
 	test("Enter accepts an enumerable option and value without submitting the command", async () => {
 		const harness = await createEditorHarness();
 
-		harness.type("/agent --thi");
+		harness.type("/side --thi");
 		await harness.waitForRender((rendered) => rendered.includes("--thinking <level>"));
 		harness.press("\r");
 		await harness.waitForRender((rendered) => rendered.includes("off"));
 		harness.press("\r");
 
-		const expected = "/agent --thinking off ";
+		const expected = "/side --thinking off ";
 		assert.equal(
 			harness.editor.getText(),
 			expected,
@@ -320,20 +320,20 @@ describe("agent command editor autocomplete", () => {
 			{ provider: "openai-codex", id: "gpt-5.6-sol", name: "gpt56s" },
 		]);
 
-		harness.type("/agent -m");
+		harness.type("/side -m");
 		await harness.waitForRender(
 			(rendered) => rendered.includes("-m <model>") && !rendered.includes("--model <model>"),
 		);
 		harness.press("\t");
 		assert.equal(
 			harness.editor.getText(),
-			"/agent -m ",
+			"/side -m ",
 			`Expected the model option edit before chaining. Got: ${harness.editor.getText()}`,
 		);
 
 		await harness.waitForRender((rendered) => rendered.includes("openai-codex/gpt-5.6-sol"));
 		harness.press("\t");
-		const expected = "/agent -m openai-codex/gpt-5.6-sol ";
+		const expected = "/side -m openai-codex/gpt-5.6-sol ";
 		assert.equal(
 			harness.editor.getText(),
 			expected,
@@ -359,7 +359,7 @@ describe("agent command editor autocomplete", () => {
 				{ provider: "openai-codex", id: "gpt-5.6-sol", name: "gpt56s" },
 			]);
 
-			harness.type("/agent -m");
+			harness.type("/side -m");
 			await harness.waitForRender((rendered) => rendered.includes("-m <model>"));
 			harness.press("\t");
 			await harness.waitForRender(
@@ -372,7 +372,7 @@ describe("agent command editor autocomplete", () => {
 
 			assert.equal(
 				harness.editor.getText(),
-				"/agent -m openai-codex/gpt-5.6-sol ",
+				"/side -m openai-codex/gpt-5.6-sol ",
 				"Expected the first unfiltered model completion to use the configured scope order",
 			);
 		} finally {
@@ -393,7 +393,7 @@ describe("agent command editor autocomplete", () => {
 				{ provider: "long-scoped", id: "gpt" },
 			]);
 
-			harness.type("/agent -m");
+			harness.type("/side -m");
 			await harness.waitForRender((rendered) => rendered.includes("-m <model>"));
 			harness.press("\t");
 			harness.type("gpt");
@@ -415,7 +415,7 @@ describe("agent command editor autocomplete", () => {
 			const harness = await createEditorHarness(process.cwd(), [
 				{ provider: "openai-codex", id: "gpt-5.6-sol" },
 			]);
-			harness.type(`/agent ${modelOption}`);
+			harness.type(`/side ${modelOption}`);
 			await harness.waitForRender((rendered) => rendered.includes(`${modelOption} <model>`));
 			harness.press("\t");
 			await harness.waitForRender((rendered) => rendered.includes("openai-codex/gpt-5.6-sol"));
@@ -444,7 +444,7 @@ describe("agent command editor autocomplete", () => {
 				{ name: "read", description: "Read a file" },
 			]);
 
-			harness.type(`/agent ${option} `);
+			harness.type(`/side ${option} `);
 			await harness.waitForRender(
 				(rendered) => rendered.includes("grep") && rendered.includes("read"),
 			);
@@ -454,7 +454,7 @@ describe("agent command editor autocomplete", () => {
 			);
 			harness.press("\t");
 
-			const expected = `/agent ${option} grep`;
+			const expected = `/side ${option} grep`;
 			assert.equal(
 				harness.editor.getText(),
 				expected,
@@ -486,7 +486,7 @@ describe("agent command editor autocomplete", () => {
 				{ name: "grep", description: "Search file contents" },
 				{ name: "read", description: "Read a file" },
 			]);
-			harness.type(`/agent ${option} gr`);
+			harness.type(`/side ${option} gr`);
 			await harness.waitForRender((rendered) => rendered.includes("Search file contents"));
 			harness.press("\t");
 			harness.type(",");
@@ -506,7 +506,7 @@ describe("agent command editor autocomplete", () => {
 
 			harness.type("re");
 			harness.press("\t");
-			const expected = `/agent ${option} grep,read`;
+			const expected = `/side ${option} grep,read`;
 			assert.equal(
 				harness.editor.getText(),
 				expected,
@@ -530,12 +530,12 @@ describe("agent command editor autocomplete", () => {
 			{ name: "grep", description: "Search file contents" },
 			{ name: "read", description: "Read a file" },
 		]);
-		harness.type("/agent --tools +gr");
+		harness.type("/side --tools +gr");
 		await harness.waitForRender((rendered) => rendered.includes("Search file contents"));
 		harness.press("\t");
 		assert.equal(
 			harness.editor.getText(),
-			"/agent --tools +grep",
+			"/side --tools +grep",
 			`Expected the + sign to survive completion. Got: ${harness.editor.getText()}`,
 		);
 
@@ -551,7 +551,7 @@ describe("agent command editor autocomplete", () => {
 		harness.press("\t");
 		assert.equal(
 			harness.editor.getText(),
-			"/agent --tools +grep,-read",
+			"/side --tools +grep,-read",
 			`Expected the - sign to survive completion. Got: ${harness.editor.getText()}`,
 		);
 	});
@@ -564,12 +564,12 @@ describe("agent command editor autocomplete", () => {
 		const harness = await createEditorHarness(process.cwd(), [], tools);
 		tools.push({ name: "write", description: "Write a file" });
 		const suffix = ",read";
-		harness.type(`/agent --tools grep,wr${suffix}`);
+		harness.type(`/side --tools grep,wr${suffix}`);
 		harness.moveCursorLeft(suffix.length);
 		harness.press("\t");
 		await harness.waitForRender((rendered) => rendered.includes("grep,write,read"));
 
-		const expected = "/agent --tools grep,write,read";
+		const expected = "/side --tools grep,write,read";
 		assert.equal(
 			harness.editor.getText(),
 			expected,
@@ -577,7 +577,7 @@ describe("agent command editor autocomplete", () => {
 		);
 		assert.equal(
 			harness.editor.getCursor().col,
-			"/agent --tools grep,write".length,
+			"/side --tools grep,write".length,
 			"Expected the cursor immediately after the completed middle segment",
 		);
 	});
@@ -589,7 +589,7 @@ describe("agent command editor autocomplete", () => {
 			{ provider: "anthropic", id: "claude-opus-4-8" },
 		]);
 
-		harness.type("/agent --prov");
+		harness.type("/side --prov");
 		await harness.waitForRender(
 			(rendered) =>
 				rendered.includes("--provider <provider>") && !rendered.includes("--prompt-template"),
@@ -604,7 +604,7 @@ describe("agent command editor autocomplete", () => {
 		);
 		harness.press("\t");
 
-		const expected = "/agent --provider openai-codex ";
+		const expected = "/side --provider openai-codex ";
 		assert.equal(
 			harness.editor.getText(),
 			expected,
@@ -625,7 +625,7 @@ describe("agent command editor autocomplete", () => {
 
 		for (const modelOption of ["-m", "--model"]) {
 			const harness = await createEditorHarness(process.cwd(), models);
-			harness.type(`/agent --provider openai-codex ${modelOption}`);
+			harness.type(`/side --provider openai-codex ${modelOption}`);
 			await harness.waitForRender((rendered) => rendered.includes(`${modelOption} <model>`));
 			harness.press("\t");
 			await harness.waitForRender((rendered) => rendered.includes("openai-codex/gpt-5.6-sol"));
@@ -642,7 +642,7 @@ describe("agent command editor autocomplete", () => {
 	test("a free-form option creates a guarded quoted slot without a fake value menu", async () => {
 		const harness = await createEditorHarness();
 
-		harness.type("/agent --sys");
+		harness.type("/side --sys");
 		await harness.waitForRender(
 			(rendered) =>
 				rendered.includes("--system-prompt <text>") && !rendered.includes("--append-system-prompt"),
@@ -651,12 +651,12 @@ describe("agent command editor autocomplete", () => {
 
 		assert.equal(
 			harness.editor.getText(),
-			'/agent --system-prompt "" ',
+			'/side --system-prompt "" ',
 			`Expected a guarded free-form slot. Got: ${harness.editor.getText()}`,
 		);
 		assert.equal(
 			harness.editor.getCursor().col,
-			'/agent --system-prompt "'.length,
+			'/side --system-prompt "'.length,
 			"Expected the cursor between the guarded quotes",
 		);
 		assert.equal(
@@ -668,7 +668,7 @@ describe("agent command editor autocomplete", () => {
 		harness.type("be terse");
 		assert.equal(
 			harness.editor.getText(),
-			'/agent --system-prompt "be terse" ',
+			'/side --system-prompt "be terse" ',
 			"Expected typed text to remain inside the guarded quotes",
 		);
 	});
@@ -720,7 +720,7 @@ describe("agent command editor autocomplete", () => {
 				},
 			]) {
 				const harness = await createEditorHarness(cwd, [], [], resourceCommands);
-				harness.type(`/agent ${option} `);
+				harness.type(`/side ${option} `);
 				await harness.waitForRender(
 					(rendered) => rendered.includes(shortcut) && rendered.includes("manual-resource.txt"),
 				);
@@ -737,7 +737,7 @@ describe("agent command editor autocomplete", () => {
 				);
 
 				harness.press("\t");
-				const expected = `/agent ${option} ${expectedPath} `;
+				const expected = `/side ${option} ${expectedPath} `;
 				assert.equal(
 					harness.editor.getText(),
 					expected,
@@ -751,7 +751,7 @@ describe("agent command editor autocomplete", () => {
 			}
 
 			const extensionHarness = await createEditorHarness(cwd, [], [], resourceCommands);
-			extensionHarness.type("/agent --extension ");
+			extensionHarness.type("/side --extension ");
 			await extensionHarness.waitForRender((rendered) => rendered.includes("installed-extension.ts"));
 			assert.doesNotMatch(
 				extensionHarness.render(),
@@ -778,7 +778,7 @@ describe("agent command editor autocomplete", () => {
 				},
 			]);
 
-			harness.type("/agent --ski");
+			harness.type("/side --ski");
 			await harness.waitForRender((rendered) => rendered.includes("--skill <path>"));
 			harness.press("\t");
 			await harness.waitForRender((rendered) => rendered.includes("skill:deploy"));
@@ -788,7 +788,7 @@ describe("agent command editor autocomplete", () => {
 			);
 			harness.press("\t");
 
-			const expected = `/agent --skill "${skillPath}" `;
+			const expected = `/side --skill "${skillPath}" `;
 			assert.equal(
 				harness.editor.getText(),
 				expected,
@@ -819,7 +819,7 @@ describe("agent command editor autocomplete", () => {
 				{ option: "--prompt-template", fixture: "prompt-fixture.md" },
 			]) {
 				const harness = await createEditorHarness(cwd);
-				harness.type(`/agent ${option} `);
+				harness.type(`/side ${option} `);
 				await harness.waitForRender((rendered) => rendered.includes(fixture));
 
 				assert.equal(
@@ -840,19 +840,19 @@ describe("agent command editor autocomplete", () => {
 			await writeFile(join(cwd, "skill-fixture", "SKILL.md"), "---\nname: fixture\n---\n");
 			const harness = await createEditorHarness(cwd);
 
-			harness.type("/agent --ski");
+			harness.type("/side --ski");
 			await harness.waitForRender(
 				(rendered) => rendered.includes("--skill <path>") && !rendered.includes("-m <model>"),
 			);
 			harness.press("\t");
 			assert.equal(
 				harness.editor.getText(),
-				'/agent --skill "" ',
+				'/side --skill "" ',
 				`Expected a guarded path slot. Got: ${harness.editor.getText()}`,
 			);
 			assert.equal(
 				harness.editor.getCursor().col,
-				'/agent --skill "'.length,
+				'/side --skill "'.length,
 				"Expected the cursor inside the guarded path slot",
 			);
 
@@ -860,18 +860,18 @@ describe("agent command editor autocomplete", () => {
 			harness.press("\t");
 			assert.equal(
 				harness.editor.getText(),
-				'/agent --skill "skill-fixture/" ',
+				'/side --skill "skill-fixture/" ',
 				`Expected directory traversal to preserve the guarded slot. Got: ${harness.editor.getText()}`,
 			);
 			assert.equal(
 				harness.editor.getCursor().col,
-				'/agent --skill "skill-fixture/'.length,
+				'/side --skill "skill-fixture/'.length,
 				"Expected the directory cursor before the closing quote",
 			);
 
 			await harness.waitForRender((rendered) => rendered.includes("SKILL.md"));
 			harness.press("\t");
-			const expected = '/agent --skill "skill-fixture/SKILL.md" ';
+			const expected = '/side --skill "skill-fixture/SKILL.md" ';
 			assert.equal(
 				harness.editor.getText(),
 				expected,

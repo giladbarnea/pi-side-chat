@@ -137,7 +137,7 @@ export function buildAttachedAgent(
 	const agent: RunningAgent = {
 		id: `user-${sequenceNumber.toString(36)}`,
 		sessionId: childSessionManager.getSessionId(),
-		command: "agent",
+		command: "side",
 		inheritedContext: record
 			? !record.isolate
 			: boundary
@@ -218,7 +218,7 @@ export async function handleAttachCommand(
 	try {
 		await attachUserAgent(pi, runningAgents, widget, isShuttingDown, nextAgentNumber, args, ctx);
 	} catch (error) {
-		reportCommandError(pi, "agent-attach", args, ctx, errorMessage(error));
+		reportCommandError(pi, "side-attach", args, ctx, errorMessage(error));
 	}
 }
 
@@ -237,7 +237,7 @@ async function attachUserAgent(
 	ctx: ExtensionCommandContext,
 ): Promise<void> {
 	const query = args.trim();
-	if (!query || /\s/.test(query)) throw new Error("Usage: /agent-attach <child-session-id>");
+	if (!query || /\s/.test(query)) throw new Error("Usage: /side-attach <child-session-id>");
 	if (ctx.hasUI) widget.setUI(ctx.ui);
 
 	// One resolution over the whole universe — attached rows and files on disk together — so a
@@ -250,19 +250,19 @@ async function attachUserAgent(
 	const matchedSessionIds = [
 		...new Set([...attachedIds, ...fileMatches.map((match) => match.sessionId)]),
 	];
-	if (matchedSessionIds.length === 0) throw new Error(`No agent session matches "${query}"`);
+	if (matchedSessionIds.length === 0) throw new Error(`No side chat session matches "${query}"`);
 	if (matchedSessionIds.length > 1)
 		throw new Error(`"${query}" matches ${matchedSessionIds.length} sessions; use more characters`);
 	const sessionId = matchedSessionIds[0]!;
 
 	if (attachedIds.includes(sessionId)) {
-		await confirmViewAgent(ctx, widget, sessionId, "Agent already attached");
+		await confirmViewAgent(ctx, widget, sessionId, "Side chat already attached");
 		return;
 	}
 
 	const mainSessionFile = ctx.sessionManager.getSessionFile();
 	if (!mainSessionFile)
-		throw new Error("This session has no file; only a persisted session can attach agents");
+		throw new Error("This session has no file; only a persisted session can attach side chats");
 	const childSessionFile = fileMatches.find((match) => match.sessionId === sessionId)!.file;
 	const childSessionManager = SessionManager.open(childSessionFile);
 	if (childSessionManager.getHeader()?.parentSession !== mainSessionFile)
@@ -293,7 +293,7 @@ async function attachUserAgent(
 		nextAgentNumber(),
 		childSessionManager,
 		model,
-		`/agent-attach ${query}`,
+		`/side-attach ${query}`,
 		record,
 	);
 	runningAgent.session = session;
@@ -320,7 +320,7 @@ async function attachUserAgent(
 	// The detach breadcrumb's counterpart: after a reload the transcript still tells the truth.
 	pi.appendEntry<AttachedEntryData>(ATTACHED_ENTRY_TYPE, { sessionId: runningAgent.sessionId });
 	if (runningAgent.aborted) return;
-	await confirmViewAgent(ctx, widget, runningAgent.sessionId, "Agent attached");
+	await confirmViewAgent(ctx, widget, runningAgent.sessionId, "Side chat attached");
 }
 
 /**
@@ -342,7 +342,7 @@ export function createHerdrDelivery(
 			const file = matchChildSessionFiles(agent.sessionId, childSessionDirectory).find(
 				(match) => match.sessionId === agent.sessionId,
 			)?.file;
-			if (!file) throw new Error("the agent has no session file yet (it has not answered)");
+			if (!file) throw new Error("the side chat has no session file yet (it has not answered)");
 			const record = readDispatchRecord(SessionManager.open(file));
 			const piArgs = [
 				...parentExtensionArgs(),
@@ -364,6 +364,6 @@ async function confirmViewAgent(
 	title: string,
 ): Promise<void> {
 	if (!ctx.hasUI) return;
-	const view = await ctx.ui.confirm(title, "View agent?");
+	const view = await ctx.ui.confirm(title, "View side chat?");
 	if (view) widget.openViewer(sessionId);
 }

@@ -54,7 +54,7 @@ type ChildReport = { tools: string[]; hooks: string[] };
 
 /**
  * Start a parent session as `pi <launchArgs>` does, with the `settings` extension configured in
- * settings. Then dispatch `/agent -s <agentOptions>` and return what the child's model was offered.
+ * settings. Then dispatch `/side -s <agentOptions>` and return what the child's model was offered.
  */
 async function dispatchFromLaunchedParent(
 	launchArgs: (extensions: Extensions) => string[],
@@ -94,7 +94,7 @@ async function dispatchFromLaunchedParent(
 				});
 				try {
 					await session.bindExtensions({ mode: "print" });
-					await session.prompt(`/agent -s ${agentOptions(extensions)} report what you were given`);
+					await session.prompt(`/side -s ${agentOptions(extensions)} report what you were given`);
 					const details = await squashedDetails(() => session.messages);
 					expect(details.ok, `Expected the child to answer, got error: ${details.error}`).toBe(true);
 					expect(details.model, "Expected the child to run on the parent's launch provider").toStartWith(
@@ -150,12 +150,12 @@ test("a child of a parent launched with --no-extensions loads exactly the parent
 	expect(child.hooks).toEqual(["hook-ran:launch"]);
 });
 
-test("/agent -e and /agent --no-extensions still apply on top of the parent's launch extensions", async () => {
+test("/side -e and /side --no-extensions still apply on top of the parent's launch extensions", async () => {
 	const added = await dispatchFromLaunchedParent(
 		(extensions) => ["-e", extensions.launch],
 		(extensions) => `-e ${extensions.agent}`,
 	);
-	expect(added.hooks.sort(), "Expected the launch, settings, and /agent -e extensions in the child").toEqual([
+	expect(added.hooks.sort(), "Expected the launch, settings, and /side -e extensions in the child").toEqual([
 		"hook-ran:agent",
 		"hook-ran:launch",
 		"hook-ran:settings",

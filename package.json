@@ -1,12 +1,13 @@
 {
-  "name": "@giladbarnea/pi-user-agents",
+  "name": "@giladbarnea/pi-side-chat",
   "version": "0.0.19",
-  "description": "Run, view, and control background Pi agents.",
+  "description": "Side chats for Pi: run, view, and steer background sessions beside the main agent.",
   "keywords": [
     "pi-package",
     "pi",
     "pi-agent",
     "pi-coding-agent",
+    "side-chat",
     "background-agents",
     "multi-agent"
   ],
@@ -14,11 +15,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/giladbarnea/pi-user-agents.git"
+    "url": "git+https://github.com/giladbarnea/pi-side-chat.git"
   },
-  "homepage": "https://github.com/giladbarnea/pi-user-agents",
+  "homepage": "https://github.com/giladbarnea/pi-side-chat",
   "bugs": {
-    "url": "https://github.com/giladbarnea/pi-user-agents/issues"
+    "url": "https://github.com/giladbarnea/pi-side-chat/issues"
   },
   "files": [
     "*.ts",

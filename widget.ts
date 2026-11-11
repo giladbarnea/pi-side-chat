@@ -377,7 +377,7 @@ export class UserAgentWidget {
 			// The pane comes first: a herdr failure here leaves the agent untouched. Pi starts in it
 			// only after the session is free here, so the file has one writer at a time.
 			const target = this.idleAgent(agentId) ?? this.completedAgents.find((agent) => agent.id === agentId);
-			if (!target) throw new Error("the agent has no row anymore");
+			if (!target) throw new Error("the side chat has no row anymore");
 			const pane = await this.herdrDelivery.split(target);
 			const snapshot = await this.releaseForHerdr(agentId);
 			await pane.start();
@@ -396,7 +396,7 @@ export class UserAgentWidget {
 		if (this.herdrPending === agentId) return "a herdr pane is already opening";
 		const completed = this.completedAgents.find((agent) => agent.id === agentId);
 		if (completed?.herdrPane) return `already in ${herdrPaneLabel(completed.herdrPane)}`;
-		if (!completed && !this.idleAgent(agentId)) return "the agent is mid-turn (Ctrl+x interrupts it)";
+		if (!completed && !this.idleAgent(agentId)) return "the side chat is mid-turn (Ctrl+x interrupts it)";
 		return undefined;
 	}
 
@@ -586,7 +586,7 @@ export class UserAgentWidget {
 		const agent = this.deliverableAgent(agentId);
 		if (!agent) return undefined;
 		// The session switch tears the extension runtime down, which would abort a mid-turn sibling.
-		if ([...this.runningAgents].some(isLiveAgent)) return "another agent is mid-turn";
+		if ([...this.runningAgents].some(isLiveAgent)) return "another side chat is mid-turn";
 		if (!this.rebaseDelivery.canDeliver(agent))
 			return "the main session has drifted since dispatch";
 		return undefined;
@@ -671,12 +671,12 @@ export class UserAgentWidget {
 		const headingGlyph = anyRunning ? "●" : anyError ? "✗" : "✓";
 		const lines = [
 			truncateToWidth(
-				`${theme.fg(headingColor, headingGlyph)} ${theme.fg(headingColor, "User agents")}`,
+				`${theme.fg(headingColor, headingGlyph)} ${theme.fg(headingColor, "Side chats")}`,
 				width,
 			),
 		];
 		if (!this.active) {
-			lines.push(truncateToWidth(`  ${theme.fg("dim", "←/↓ select agent")}`, width));
+			lines.push(truncateToWidth(`  ${theme.fg("dim", "←/↓ select side chat")}`, width));
 		} else {
 			const selected = entries[this.selectedIndex];
 			const confirmingDetach =
@@ -691,7 +691,7 @@ export class UserAgentWidget {
 					truncateToWidth(
 						`  ${theme.fg(
 							"warning",
-							`⚠ Rebase will detach ${detachCount} other agent session${detachCount === 1 ? "" : "s"}. r again to confirm`,
+							`⚠ Rebase will detach ${detachCount} other side chat session${detachCount === 1 ? "" : "s"}. r again to confirm`,
 						)}`,
 						width,
 					),

@@ -4,7 +4,7 @@ last_updated: 2026-11-01T23-46
 ---
 # The overlay renders tool history itself
 
-The `/agent` overlay shows a captured child-session transcript. It is not the live transcript.
+The `/side` overlay shows a captured child-session transcript. It is not the live transcript.
 It has no tool registry, no execution state, and no component lifecycle. `AgentViewer` produces
 a `string[]`, and the overlay hard-cuts every line to its own width instead of wrapping it.
 
@@ -17,7 +17,7 @@ longer be registered.
 - [V-Stack, now Kendex](https://github.com/vanillagreencom/kendex/tree/main/pi-extensions/pi-tool-renderer/extensions/tool-renderer) — `read`, `edit`, `write`, `grep`, `find`, `ls`, originally copied through the former local curated extension. The local fork has been removed; this link identifies the upstream source, not a runtime dependency.
 - `/Users/giladbarnea/.pi/agent/extensions/bash-rich-highlight/index.ts` — `bash`.
 
-Both are **disabled** in committed `agent/settings.json`, while `pi-user-agents` is enabled.
+Both are **disabled** in committed `agent/settings.json`, while `pi-side-chat` is enabled.
 Nothing here imports from either at runtime. The code was copied and adapted, by request.
 
 1973 lines here, from 2857 lines of source.

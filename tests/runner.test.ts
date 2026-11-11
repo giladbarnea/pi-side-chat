@@ -55,7 +55,7 @@ const base = {
 
 /** Build the single prose-body advisory exactly as the parser emits it (§5). */
 function warning(
-	command: "agent",
+	command: "side",
 	optionWithValue: string,
 	firstProseWord: string,
 ): string {
@@ -64,14 +64,14 @@ function warning(
 
 describe("parseAgentCommand — args → prose one-way flip (§2, §4)", () => {
 	test("a leading non-dash word flips the whole input to prose", () => {
-		expect(parseAgentCommand("do the thing now", "agent")).toEqual({
+		expect(parseAgentCommand("do the thing now", "side")).toEqual({
 			...base,
 			task: "do the thing now",
 		});
 	});
 
 	test("consumes leading options then flips at the first prose word", () => {
-		expect(parseAgentCommand("--thinking high do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("--thinking high do the thing", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--thinking", "high"],
 			task: "do the thing",
@@ -79,25 +79,25 @@ describe("parseAgentCommand — args → prose one-way flip (§2, §4)", () => {
 	});
 
 	test("never returns to args mode: a recognized option after the flip stays in the prose", () => {
-		expect(parseAgentCommand("-m gpt56s hello --thinking high world", "agent")).toEqual({
+		expect(parseAgentCommand("-m gpt56s hello --thinking high world", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--model", "gpt56s"],
 			task: "hello --thinking high world",
-			warnings: [warning("agent", "--thinking high", "hello")],
+			warnings: [warning("side", "--thinking high", "hello")],
 		});
 	});
 
 	test("preserves leading whitespace when the very first token is prose", () => {
-		expect(parseAgentCommand("   go now", "agent")).toEqual({ ...base, task: "   go now" });
+		expect(parseAgentCommand("   go now", "side")).toEqual({ ...base, task: "   go now" });
 	});
 
 	test("skips leading whitespace to reach the first option (Pi passes command args untrimmed — a stray space must not drop flags)", () => {
-		expect(parseAgentCommand(" --thinking high fix it", "agent")).toEqual({
+		expect(parseAgentCommand(" --thinking high fix it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--thinking", "high"],
 			task: "fix it",
 		});
-		expect(parseAgentCommand("   -i do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("   -i do the thing", "side")).toEqual({
 			...base,
 			isolate: true,
 			task: "do the thing",
@@ -107,7 +107,7 @@ describe("parseAgentCommand — args → prose one-way flip (§2, §4)", () => {
 
 describe("parseAgentCommand — extension options (§3a)", () => {
 	test("normalizes -m to Pi's --model option", () => {
-		expect(parseAgentCommand("-m gpt56t Explain it", "agent")).toEqual({
+		expect(parseAgentCommand("-m gpt56t Explain it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--model", "gpt56t"],
 			task: "Explain it",
@@ -115,12 +115,12 @@ describe("parseAgentCommand — extension options (§3a)", () => {
 	});
 
 	test("consumes -i / --isolate", () => {
-		expect(parseAgentCommand("-i do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("-i do the thing", "side")).toEqual({
 			...base,
 			isolate: true,
 			task: "do the thing",
 		});
-		expect(parseAgentCommand("--isolate do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("--isolate do the thing", "side")).toEqual({
 			...base,
 			isolate: true,
 			task: "do the thing",
@@ -128,12 +128,12 @@ describe("parseAgentCommand — extension options (§3a)", () => {
 	});
 
 	test("consumes -s / --squash", () => {
-		expect(parseAgentCommand("-s do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("-s do the thing", "side")).toEqual({
 			...base,
 			squash: true,
 			task: "do the thing",
 		});
-		expect(parseAgentCommand("--squash do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("--squash do the thing", "side")).toEqual({
 			...base,
 			squash: true,
 			task: "do the thing",
@@ -141,12 +141,12 @@ describe("parseAgentCommand — extension options (§3a)", () => {
 	});
 
 	test("consumes -h / --herdr", () => {
-		expect(parseAgentCommand("-h do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("-h do the thing", "side")).toEqual({
 			...base,
 			herdr: true,
 			task: "do the thing",
 		});
-		expect(parseAgentCommand("--herdr do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("--herdr do the thing", "side")).toEqual({
 			...base,
 			herdr: true,
 			task: "do the thing",
@@ -154,8 +154,8 @@ describe("parseAgentCommand — extension options (§3a)", () => {
 	});
 
 	test("-h and -s conflict: an agent in a herdr pane never squashes into this context", () => {
-		expect(() => parseAgentCommand("-h -s do the thing", "agent")).toThrow(/-h and -s conflict/);
-		expect(() => parseAgentCommand("--squash --herdr do the thing", "agent")).toThrow(
+		expect(() => parseAgentCommand("-h -s do the thing", "side")).toThrow(/-h and -s conflict/);
+		expect(() => parseAgentCommand("--squash --herdr do the thing", "side")).toThrow(
 			/-h and -s conflict/,
 		);
 	});
@@ -168,32 +168,32 @@ describe("parseAgentCommand — extension options (§3a)", () => {
 			squash: true,
 			task: "do the thing",
 		};
-		expect(parseAgentCommand("-s -i -m gpt56t do the thing", "agent")).toEqual(expected);
-		expect(parseAgentCommand("-m gpt56t -i --squash do the thing", "agent")).toEqual(expected);
+		expect(parseAgentCommand("-s -i -m gpt56t do the thing", "side")).toEqual(expected);
+		expect(parseAgentCommand("-m gpt56t -i --squash do the thing", "side")).toEqual(expected);
 	});
 
 	test("the previous --context option is no longer recognized", () => {
-		expect(parseAgentCommand("--context do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("--context do the thing", "side")).toEqual({
 			...base,
 			task: "--context do the thing",
 		});
 	});
 
 	test("bare -m without a model name remains a usage error", () => {
-		expect(() => parseAgentCommand("-m", "agent")).toThrow(/Usage/);
-		expect(() => parseAgentCommand("-m   ", "agent")).toThrow(/Usage/);
-		expect(() => parseAgentCommand("-i -m", "agent")).toThrow(/Usage/);
+		expect(() => parseAgentCommand("-m", "side")).toThrow(/Usage/);
+		expect(() => parseAgentCommand("-m   ", "side")).toThrow(/Usage/);
+		expect(() => parseAgentCommand("-i -m", "side")).toThrow(/Usage/);
 	});
 
 	test("an empty task after consuming options is a usage error", () => {
-		expect(() => parseAgentCommand("-i", "agent")).toThrow(/Usage/);
-		expect(() => parseAgentCommand("--thinking high", "agent")).toThrow(/Usage/);
+		expect(() => parseAgentCommand("-i", "side")).toThrow(/Usage/);
+		expect(() => parseAgentCommand("--thinking high", "side")).toThrow(/Usage/);
 	});
 });
 
 describe("parseAgentCommand — known pi option arity from the static table (§3b)", () => {
 	test("a value option consumes the next token", () => {
-		expect(parseAgentCommand("--thinking high do it", "agent")).toEqual({
+		expect(parseAgentCommand("--thinking high do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--thinking", "high"],
 			task: "do it",
@@ -201,7 +201,7 @@ describe("parseAgentCommand — known pi option arity from the static table (§3
 	});
 
 	test("a boolean option consumes no value", () => {
-		expect(parseAgentCommand("--offline do it", "agent")).toEqual({
+		expect(parseAgentCommand("--offline do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--offline"],
 			task: "do it",
@@ -210,7 +210,7 @@ describe("parseAgentCommand — known pi option arity from the static table (§3
 
 
 	test("a value option swallows a following option-looking token as its verbatim value", () => {
-		expect(parseAgentCommand("--thinking --offline do it", "agent")).toEqual({
+		expect(parseAgentCommand("--thinking --offline do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--thinking", "--offline"],
 			task: "do it",
@@ -218,7 +218,7 @@ describe("parseAgentCommand — known pi option arity from the static table (§3
 	});
 
 	test("a value option swallows even an extension option as its value", () => {
-		expect(parseAgentCommand("--thinking -i do it", "agent")).toEqual({
+		expect(parseAgentCommand("--thinking -i do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--thinking", "-i"],
 			task: "do it",
@@ -226,12 +226,12 @@ describe("parseAgentCommand — known pi option arity from the static table (§3
 	});
 
 	test("recognizes short-form value options", () => {
-		expect(parseAgentCommand("-t read,edit do it", "agent")).toEqual({
+		expect(parseAgentCommand("-t read,edit do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["-t", "read,edit"],
 			task: "do it",
 		});
-		expect(parseAgentCommand("-e ./ext do it", "agent")).toEqual({
+		expect(parseAgentCommand("-e ./ext do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["-e", "./ext"],
 			task: "do it",
@@ -239,12 +239,12 @@ describe("parseAgentCommand — known pi option arity from the static table (§3
 	});
 
 	test("recognizes short-form boolean options", () => {
-		expect(parseAgentCommand("-nt do it", "agent")).toEqual({
+		expect(parseAgentCommand("-nt do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["-nt"],
 			task: "do it",
 		});
-		expect(parseAgentCommand("-nbt do it", "agent")).toEqual({
+		expect(parseAgentCommand("-nbt do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["-nbt"],
 			task: "do it",
@@ -253,7 +253,7 @@ describe("parseAgentCommand — known pi option arity from the static table (§3
 
 	test("accumulates a repeated multi-value option in input order", () => {
 		expect(
-			parseAgentCommand("--append-system-prompt a --append-system-prompt b do it", "agent"),
+			parseAgentCommand("--append-system-prompt a --append-system-prompt b do it", "side"),
 		).toEqual({
 			...base,
 			forwardedArgs: ["--append-system-prompt", "a", "--append-system-prompt", "b"],
@@ -262,13 +262,13 @@ describe("parseAgentCommand — known pi option arity from the static table (§3
 	});
 
 	test("a value option with no following token does not crash (empty task → usage error)", () => {
-		expect(() => parseAgentCommand("--thinking", "agent")).toThrow(/Usage/);
+		expect(() => parseAgentCommand("--thinking", "side")).toThrow(/Usage/);
 	});
 });
 
 describe("parseAgentCommand — reading a quoted option value (§3b)", () => {
 	test("strips the surrounding quotes and spans internal whitespace into one forwardedArgs element", () => {
-		expect(parseAgentCommand('--system-prompt "I am psyched" do it', "agent")).toEqual({
+		expect(parseAgentCommand('--system-prompt "I am psyched" do it', "side")).toEqual({
 			...base,
 			forwardedArgs: ["--system-prompt", "I am psyched"],
 			task: "do it",
@@ -276,7 +276,7 @@ describe("parseAgentCommand — reading a quoted option value (§3b)", () => {
 	});
 
 	test("strips the quotes even when the value has no internal whitespace", () => {
-		expect(parseAgentCommand('--system-prompt "Psych" do it', "agent")).toEqual({
+		expect(parseAgentCommand('--system-prompt "Psych" do it', "side")).toEqual({
 			...base,
 			forwardedArgs: ["--system-prompt", "Psych"],
 			task: "do it",
@@ -284,7 +284,7 @@ describe("parseAgentCommand — reading a quoted option value (§3b)", () => {
 	});
 
 	test("reads and dequotes a quoted value for the -m alias", () => {
-		expect(parseAgentCommand('-m "gpt56s" go', "agent")).toEqual({
+		expect(parseAgentCommand('-m "gpt56s" go', "side")).toEqual({
 			...base,
 			forwardedArgs: ["--model", "gpt56s"],
 			task: "go",
@@ -292,7 +292,7 @@ describe("parseAgentCommand — reading a quoted option value (§3b)", () => {
 	});
 
 	test("treats an option-looking quoted value as literal — no inner parsing, no spurious warning", () => {
-		expect(parseAgentCommand('--system-prompt "talk about -m modelname arg" go', "agent")).toEqual({
+		expect(parseAgentCommand('--system-prompt "talk about -m modelname arg" go', "side")).toEqual({
 			...base,
 			forwardedArgs: ["--system-prompt", "talk about -m modelname arg"],
 			task: "go",
@@ -300,7 +300,7 @@ describe("parseAgentCommand — reading a quoted option value (§3b)", () => {
 	});
 
 	test("keeps a backslash inside a quoted value verbatim (no recursion)", () => {
-		expect(parseAgentCommand('--system-prompt "talk about \\-m arg" go', "agent")).toEqual({
+		expect(parseAgentCommand('--system-prompt "talk about \\-m arg" go', "side")).toEqual({
 			...base,
 			forwardedArgs: ["--system-prompt", "talk about \\-m arg"],
 			task: "go",
@@ -308,7 +308,7 @@ describe("parseAgentCommand — reading a quoted option value (§3b)", () => {
 	});
 
 	test("falls back to the whitespace-delimited token when a value opens a quote with no matching close", () => {
-		expect(parseAgentCommand('--system-prompt "foo bar', "agent")).toEqual({
+		expect(parseAgentCommand('--system-prompt "foo bar', "side")).toEqual({
 			...base,
 			forwardedArgs: ["--system-prompt", '"foo'],
 			task: "bar",
@@ -319,42 +319,42 @@ describe("parseAgentCommand — reading a quoted option value (§3b)", () => {
 describe("parseAgentCommand — blocked pi options (§3c, §9)", () => {
 	test("rejects continuation and print options", () => {
 		for (const option of ["-c", "--continue", "-p", "--print"]) {
-			expect(() => parseAgentCommand(`${option} do it`, "agent")).toThrow(
-				`/agent does not support ${option}`,
+			expect(() => parseAgentCommand(`${option} do it`, "side")).toThrow(
+				`/side does not support ${option}`,
 			);
 		}
 	});
 
 	test("rejects a leading blocked option with a hard error", () => {
-		expect(() => parseAgentCommand("--export out.html do it", "agent")).toThrow(
+		expect(() => parseAgentCommand("--export out.html do it", "side")).toThrow(
 			/does not support --export/,
 		);
-		expect(() => parseAgentCommand("--models a,b do it", "agent")).toThrow(
+		expect(() => parseAgentCommand("--models a,b do it", "side")).toThrow(
 			/does not support --models/,
 		);
-		expect(() => parseAgentCommand("--list-models do it", "agent")).toThrow(
+		expect(() => parseAgentCommand("--list-models do it", "side")).toThrow(
 			/does not support --list-models/,
 		);
-		expect(() => parseAgentCommand("--help", "agent")).toThrow(/does not support --help/);
-		expect(() => parseAgentCommand("-v", "agent")).toThrow(/does not support -v/);
-		expect(() => parseAgentCommand("--version", "agent")).toThrow(/does not support --version/);
+		expect(() => parseAgentCommand("--help", "side")).toThrow(/does not support --help/);
+		expect(() => parseAgentCommand("-v", "side")).toThrow(/does not support -v/);
+		expect(() => parseAgentCommand("--version", "side")).toThrow(/does not support --version/);
 	});
 
 	test("a blocked option in the prose body warns instead of erroring", () => {
-		expect(parseAgentCommand("do it --export out.html", "agent")).toEqual({
+		expect(parseAgentCommand("do it --export out.html", "side")).toEqual({
 			...base,
 			task: "do it --export out.html",
-			warnings: [warning("agent", "--export", "do")],
+			warnings: [warning("side", "--export", "do")],
 		});
 	});
 
 	test("a blocked option consumed as a value option's value is taken verbatim, not rejected (§3b/§4)", () => {
-		expect(parseAgentCommand("--thinking --help do it", "agent")).toEqual({
+		expect(parseAgentCommand("--thinking --help do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--thinking", "--help"],
 			task: "do it",
 		});
-		expect(parseAgentCommand("--thinking --export do it", "agent")).toEqual({
+		expect(parseAgentCommand("--thinking --export do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--thinking", "--export"],
 			task: "do it",
@@ -364,102 +364,102 @@ describe("parseAgentCommand — blocked pi options (§3c, §9)", () => {
 
 describe("parseAgentCommand — prose-body warnings (§5)", () => {
 	test("warns when a value option is typed in the prose body", () => {
-		expect(parseAgentCommand("hello world -m gpt56s", "agent")).toEqual({
+		expect(parseAgentCommand("hello world -m gpt56s", "side")).toEqual({
 			...base,
 			task: "hello world -m gpt56s",
-			warnings: [warning("agent", "-m gpt56s", "hello")],
+			warnings: [warning("side", "-m gpt56s", "hello")],
 		});
 	});
 
 	test("emits one warning per recognized option occurrence, in order", () => {
-		expect(parseAgentCommand("do the thing --offline --verbose", "agent")).toEqual({
+		expect(parseAgentCommand("do the thing --offline --verbose", "side")).toEqual({
 			...base,
 			task: "do the thing --offline --verbose",
-			warnings: [warning("agent", "--offline", "do"), warning("agent", "--verbose", "do")],
+			warnings: [warning("side", "--offline", "do"), warning("side", "--verbose", "do")],
 		});
 	});
 
 	test("a value option in prose warns with the following option as its value AND that option warns again on its own (§9)", () => {
-		expect(parseAgentCommand("go --thinking --offline now", "agent")).toEqual({
+		expect(parseAgentCommand("go --thinking --offline now", "side")).toEqual({
 			...base,
 			task: "go --thinking --offline now",
 			warnings: [
-				warning("agent", "--thinking --offline", "go"),
-				warning("agent", "--offline", "go"),
+				warning("side", "--thinking --offline", "go"),
+				warning("side", "--offline", "go"),
 			],
 		});
 	});
 
 	test("does not warn on unknown arg-looking tokens (leading or in prose)", () => {
-		expect(parseAgentCommand("-g badflagname hello world", "agent")).toEqual({
+		expect(parseAgentCommand("-g badflagname hello world", "side")).toEqual({
 			...base,
 			task: "-g badflagname hello world",
 		});
-		expect(parseAgentCommand("hello world -g badflagname", "agent")).toEqual({
+		expect(parseAgentCommand("hello world -g badflagname", "side")).toEqual({
 			...base,
 			task: "hello world -g badflagname",
 		});
-		expect(parseAgentCommand("--doesnotexist this is my message", "agent")).toEqual({
+		expect(parseAgentCommand("--doesnotexist this is my message", "side")).toEqual({
 			...base,
 			task: "--doesnotexist this is my message",
 		});
 	});
 
 	test("does not recognize an =-form option (recognition is exact-token): flips to prose with no warning", () => {
-		expect(parseAgentCommand("--thinking=high do it", "agent")).toEqual({
+		expect(parseAgentCommand("--thinking=high do it", "side")).toEqual({
 			...base,
 			task: "--thinking=high do it",
 		});
 	});
 
 	test("does not warn on quoted option-looking tokens", () => {
-		expect(parseAgentCommand('summarize "-m gpt56"', "agent")).toEqual({
+		expect(parseAgentCommand('summarize "-m gpt56"', "side")).toEqual({
 			...base,
 			task: 'summarize "-m gpt56"',
 		});
 	});
 
 	test("does not warn on backslash-escaped option-looking tokens", () => {
-		expect(parseAgentCommand("tell me about \\-m please", "agent")).toEqual({
+		expect(parseAgentCommand("tell me about \\-m please", "side")).toEqual({
 			...base,
 			task: "tell me about -m please",
 		});
 	});
 
 	test("uses the unescaped first prose word in the suggested rewrite", () => {
-		expect(parseAgentCommand("\\-i --thinking high do it", "agent")).toEqual({
+		expect(parseAgentCommand("\\-i --thinking high do it", "side")).toEqual({
 			...base,
 			task: "-i --thinking high do it",
-			warnings: [warning("agent", "--thinking high", "-i")],
+			warnings: [warning("side", "--thinking high", "-i")],
 		});
 	});
 });
 
 describe("parseAgentCommand — quotes never stripped, suppress parsing (§6a)", () => {
 	test("keeps quotes verbatim and never parses inside a matched span", () => {
-		expect(parseAgentCommand('summarize "war and peace"', "agent")).toEqual({
+		expect(parseAgentCommand('summarize "war and peace"', "side")).toEqual({
 			...base,
 			task: 'summarize "war and peace"',
 		});
 	});
 
 	test("a leading quoted span flips to prose and suppresses parsing", () => {
-		expect(parseAgentCommand('"-m gpt56" now', "agent")).toEqual({
+		expect(parseAgentCommand('"-m gpt56" now', "side")).toEqual({
 			...base,
 			task: '"-m gpt56" now',
 		});
 	});
 
 	test("an unmatched quote is a literal char with no protective effect", () => {
-		expect(parseAgentCommand("hello 'world -m gpt56s", "agent")).toEqual({
+		expect(parseAgentCommand("hello 'world -m gpt56s", "side")).toEqual({
 			...base,
 			task: "hello 'world -m gpt56s",
-			warnings: [warning("agent", "-m gpt56s", "hello")],
+			warnings: [warning("side", "-m gpt56s", "hello")],
 		});
 	});
 
 	test("a backslash inside a matched quote span is not processed", () => {
-		expect(parseAgentCommand('"\\-m gpt56 hello"', "agent")).toEqual({
+		expect(parseAgentCommand('"\\-m gpt56 hello"', "side")).toEqual({
 			...base,
 			task: '"\\-m gpt56 hello"',
 		});
@@ -468,7 +468,7 @@ describe("parseAgentCommand — quotes never stripped, suppress parsing (§6a)",
 
 describe("parseAgentCommand — non-straight quote pairs (§6a)", () => {
 	test("reads a curly-double-quoted option value (closing quote differs from opening)", () => {
-		expect(parseAgentCommand("--system-prompt “I am psyched” do it", "agent")).toEqual({
+		expect(parseAgentCommand("--system-prompt “I am psyched” do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--system-prompt", "I am psyched"],
 			task: "do it",
@@ -476,7 +476,7 @@ describe("parseAgentCommand — non-straight quote pairs (§6a)", () => {
 	});
 
 	test("reads a curly-single-quoted option value (closing quote differs from opening)", () => {
-		expect(parseAgentCommand("-m ‘gpt56s’ go", "agent")).toEqual({
+		expect(parseAgentCommand("-m ‘gpt56s’ go", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--model", "gpt56s"],
 			task: "go",
@@ -484,7 +484,7 @@ describe("parseAgentCommand — non-straight quote pairs (§6a)", () => {
 	});
 
 	test("reads a backtick-quoted option value", () => {
-		expect(parseAgentCommand("--system-prompt `be terse` do it", "agent")).toEqual({
+		expect(parseAgentCommand("--system-prompt `be terse` do it", "side")).toEqual({
 			...base,
 			forwardedArgs: ["--system-prompt", "be terse"],
 			task: "do it",
@@ -492,14 +492,14 @@ describe("parseAgentCommand — non-straight quote pairs (§6a)", () => {
 	});
 
 	test("a curly-quoted span in prose masks a bare recognized option inside it (no warning)", () => {
-		expect(parseAgentCommand("summarize “do -m now”", "agent")).toEqual({
+		expect(parseAgentCommand("summarize “do -m now”", "side")).toEqual({
 			...base,
 			task: "summarize “do -m now”",
 		});
 	});
 
 	test("a backtick-quoted span in prose masks a bare recognized option inside it (no warning)", () => {
-		expect(parseAgentCommand("summarize `do -m now`", "agent")).toEqual({
+		expect(parseAgentCommand("summarize `do -m now`", "side")).toEqual({
 			...base,
 			task: "summarize `do -m now`",
 		});
@@ -508,55 +508,55 @@ describe("parseAgentCommand — non-straight quote pairs (§6a)", () => {
 
 describe("parseAgentCommand — backslash-before-dash removed, never recurses (§6b)", () => {
 	test("removes a leading backslash before a dash", () => {
-		expect(parseAgentCommand("\\-m hello", "agent")).toEqual({ ...base, task: "-m hello" });
-		expect(parseAgentCommand("\\--thinking high", "agent")).toEqual({
+		expect(parseAgentCommand("\\-m hello", "side")).toEqual({ ...base, task: "-m hello" });
+		expect(parseAgentCommand("\\--thinking high", "side")).toEqual({
 			...base,
 			task: "--thinking high",
 		});
 	});
 
 	test("collapses the overly-cautious double form \\-\\- to --", () => {
-		expect(parseAgentCommand("\\-\\-thinking high", "agent")).toEqual({
+		expect(parseAgentCommand("\\-\\-thinking high", "side")).toEqual({
 			...base,
 			task: "--thinking high",
 		});
-		expect(parseAgentCommand("\\--word here", "agent")).toEqual({ ...base, task: "--word here" });
+		expect(parseAgentCommand("\\--word here", "side")).toEqual({ ...base, task: "--word here" });
 	});
 
 	test("does not recurse beyond the double form", () => {
-		expect(parseAgentCommand("\\-\\-\\-word here", "agent")).toEqual({
+		expect(parseAgentCommand("\\-\\-\\-word here", "side")).toEqual({
 			...base,
 			task: "--\\-word here",
 		});
 	});
 
 	test("leaves a backslash that is not at a word-start before a dash literal", () => {
-		expect(parseAgentCommand("\\backslash and foo\\-bar", "agent")).toEqual({
+		expect(parseAgentCommand("\\backslash and foo\\-bar", "side")).toEqual({
 			...base,
 			task: "\\backslash and foo\\-bar",
 		});
 	});
 
 	test("processes a backslash-escaped dash already in prose, with no warning", () => {
-		expect(parseAgentCommand("hello \\-m world", "agent")).toEqual({
+		expect(parseAgentCommand("hello \\-m world", "side")).toEqual({
 			...base,
 			task: "hello -m world",
 		});
 	});
 
 	test("an escaped leading flag does not resurrect arg parsing", () => {
-		expect(parseAgentCommand("\\-i do the thing", "agent")).toEqual({
+		expect(parseAgentCommand("\\-i do the thing", "side")).toEqual({
 			...base,
 			task: "-i do the thing",
 		});
 	});
 
 	test("applies the spec's mixed escape/quote worked examples", () => {
-		expect(parseAgentCommand('hello agent, \\-m "gpt56s" how are you?', "agent")).toEqual({
+		expect(parseAgentCommand('hello agent, \\-m "gpt56s" how are you?', "side")).toEqual({
 			...base,
 			task: 'hello agent, -m "gpt56s" how are you?',
 		});
-		expect(parseAgentCommand('hello agent, \\--thi"nking" high', "agent")).toEqual({
+		expect(parseAgentCommand('hello agent, \\--thi"nking" high', "side")).toEqual({
 			...base,
 			task: 'hello agent, --thi"nking" high',
 		});
@@ -664,7 +664,7 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 				{ input: "-xt bash", activeTools: ["read", "edit", "write"] },
 				{ input: "-nt", activeTools: [] },
 			]) {
-				const forwardedArgs = parseAgentCommand(`${input} --no-extensions review it`, "agent").forwardedArgs;
+				const forwardedArgs = parseAgentCommand(`${input} --no-extensions review it`, "side").forwardedArgs;
 				const parsed = parseForwardedArgs(forwardedArgs);
 				const services = await createChildServices(ctx, forwardedArgs);
 				const { session } = await createAgentSessionFromServices({
@@ -675,7 +675,7 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 				try {
 					expect(
 						session.getActiveToolNames(),
-						`Expected /agent ${input} to give the child exactly these tools`,
+						`Expected /side ${input} to give the child exactly these tools`,
 					).toEqual(activeTools);
 				} finally {
 					session.dispose();
@@ -718,7 +718,7 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 					] as AgentMessage[],
 					[],
 				);
-				const forwardedArgs = parseAgentCommand(`${input} --no-extensions review it`, "agent").forwardedArgs;
+				const forwardedArgs = parseAgentCommand(`${input} --no-extensions review it`, "side").forwardedArgs;
 				const parsed = parseForwardedArgs(forwardedArgs);
 				const services = await createChildServices(ctx, forwardedArgs);
 				const { session } = await createAgentSessionFromServices({
@@ -729,7 +729,7 @@ describe("resolveForwardedOptions — static-arity forwarding (§7)", () => {
 				try {
 					expect(
 						session.getActiveToolNames(),
-						`Expected a resumed /agent ${input} child to keep exactly its dispatch tools`,
+						`Expected a resumed /side ${input} child to keep exactly its dispatch tools`,
 					).toEqual(activeTools);
 				} finally {
 					session.dispose();
@@ -1008,12 +1008,12 @@ describe("runChildTurns — main-context delivery", () => {
 		const agent = {
 			id: "user-1",
 			sessionId: "session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "plan the migration",
-			invocation: "/agent -s plan the migration",
+			invocation: "/side -s plan the migration",
 			notifyMainAgent: squash,
 			dispatchBaseFingerprint: "[]",
 			mainContextState: "will-squash",
@@ -1088,12 +1088,12 @@ describe("runChildTurns — main-context delivery", () => {
 		const agent = {
 			id: "user-1",
 			sessionId: "session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "plan the migration",
-			invocation: "/agent plan the migration",
+			invocation: "/side plan the migration",
 			notifyMainAgent: true,
 			dispatchBaseFingerprint: "[]",
 			mainContextState: "will-squash",
@@ -1176,12 +1176,12 @@ describe("runChildTurns — main-context delivery", () => {
 		const agent = {
 			id: "user-1",
 			sessionId: "session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "plan the migration",
-			invocation: "/agent -s plan the migration",
+			invocation: "/side -s plan the migration",
 			notifyMainAgent: true,
 			dispatchBaseFingerprint: "[]",
 			mainContextState: "will-squash",
@@ -1244,12 +1244,12 @@ describe("subscribeToChildSession — capturing a live child compaction", () => 
 		const agent = {
 			id: "user-1",
 			sessionId: "session-1",
-			command: "agent",
+			command: "side",
 			inheritedContext: true,
 			model: "provider/model",
 			modelLabel: "model",
 			task: "long task",
-			invocation: "/agent long task",
+			invocation: "/side long task",
 			notifyMainAgent: false,
 			dispatchBaseFingerprint: "[]",
 			mainContextState: "separate",
@@ -1430,9 +1430,9 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 						widget,
 						() => false,
 						() => 1,
-						"agent",
+						"side",
 						"--tools read,grep --no-session -h audit the migration",
-						"/agent --tools read,grep --no-session -h audit the migration",
+						"/side --tools read,grep --no-session -h audit the migration",
 						ctx,
 					),
 				));
@@ -1444,7 +1444,7 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 				expect(start).toEqual([
 					"agent",
 					"start",
-					expect.stringMatching(/^agent-[0-9a-f]{8}-[0-9a-f]{4}$/),
+					expect.stringMatching(/^side-[0-9a-f]{8}-[0-9a-f]{4}$/),
 					"--kind",
 					"pi",
 					"--pane",
@@ -1481,7 +1481,7 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 				});
 				expect(
 					child.buildSessionContext().model,
-					"Expected the file to carry the model, or a later /agent-attach or /resume falls back to the default",
+					"Expected the file to carry the model, or a later /side-attach or /resume falls back to the default",
 				).toEqual({ provider: "openai-codex", modelId: "gpt-5.6-luna" });
 				expect(child.buildSessionContext().thinkingLevel).toBe("high");
 				expect(
@@ -1490,7 +1490,7 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 				).toEqual(["user", "assistant"]);
 				expect(runningAgents.size, "Expected nothing to run in this process").toBe(0);
 				expect(notifications.at(-1)).toEqual({
-					message: "Started /agent in herdr pane w1:p2",
+					message: "Started /side in herdr pane w1:p2",
 					level: "info",
 				});
 				expect(widgetComponent().render(140).join("\n")).toContain("herdr pane w1:p2");
@@ -1514,14 +1514,14 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 					widget,
 					() => false,
 					() => 1,
-					"agent",
+					"side",
 					"-h audit the migration",
-					"/agent -h audit the migration",
+					"/side -h audit the migration",
 					ctx,
 				);
 
 				expect(notifications.at(-1)).toEqual({
-					message: "/agent -h needs Pi to run inside a herdr pane",
+					message: "/side -h needs Pi to run inside a herdr pane",
 					level: "error",
 				});
 				expect(fake.calls).toEqual([]);

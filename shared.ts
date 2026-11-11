@@ -15,7 +15,7 @@ export type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 export type Theme = ExtensionCommandContext["ui"]["theme"];
 export type UIContext = ExtensionCommandContext["ui"];
 
-export type AgentCommandName = "agent" | "agent-attach";
+export type AgentCommandName = "side" | "side-attach";
 export type MainContextState = "separate" | "will-squash" | "squashed" | "rebased";
 export type AgentStatus =
 	| "starting"
@@ -112,7 +112,7 @@ export type RunningAgent = {
 	model: string;
 	modelLabel: string;
 	task: string;
-	/** The slash command line as the user typed it, e.g. `/agent -s fix the bug`. */
+	/** The slash command line as the user typed it, e.g. `/side -s fix the bug`. */
 	invocation: string;
 	/** -s/--squash: post invocation+result to the main agent and trigger its turn, instead of waiting quietly for the next user prompt. */
 	notifyMainAgent: boolean;
@@ -237,13 +237,14 @@ export class TimedConfirmation<Target> {
 	}
 }
 
+// Persisted in session files under the extension's former name; renaming them would orphan existing sessions.
 export const MESSAGE_TYPE = "pi-user-agents";
 export const DETACHED_ENTRY_TYPE = "pi-user-agents-detached";
 export const REBASED_ENTRY_TYPE = "pi-user-agents-rebased";
 export const ATTACHED_ENTRY_TYPE = "pi-user-agents-attached";
 export const DISPATCH_ENTRY_TYPE = "pi-user-agents-dispatch";
-export const WIDGET_KEY = "pi-user-agents";
-export const STEERING_LOG_PATH = `${tmpdir()}/pi-user-agents-steer.log`;
+export const WIDGET_KEY = "pi-side-chat";
+export const STEERING_LOG_PATH = `${tmpdir()}/pi-side-chat-steer.log`;
 
 export function logSteering(
 	agentId: string,
