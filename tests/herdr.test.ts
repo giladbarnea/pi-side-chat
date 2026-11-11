@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { herdrAgentName, insideHerdr, openPiInHerdrPane } from "../herdr.ts";
+import { herdrAgentName, insideHerdr, openPiInHerdr } from "../herdr.ts";
 import { fakeHerdr, insideFakeHerdrPane } from "./herdr-fake.ts";
 
 describe("herdrAgentName", () => {
@@ -24,12 +24,12 @@ describe("insideHerdr", () => {
 	});
 });
 
-describe("openPiInHerdrPane", () => {
+describe("openPiInHerdr", () => {
 	test("splits a wide caller pane to the right, unfocused, in the given cwd, then starts pi there with the args", async () => {
 		const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w1:p2" });
 		try {
 			const paneId = await insideFakeHerdrPane("w1:p1", () =>
-				openPiInHerdrPane("/repo", "agent-x", ["--session", "/s.jsonl", "say hi there"]),
+				openPiInHerdr("pane", "/repo", "agent-x", ["--session", "/s.jsonl", "say hi there"]),
 			);
 
 			expect(paneId).toBe("w1:p2");
@@ -46,7 +46,7 @@ describe("openPiInHerdrPane", () => {
 	test("splits a tall or narrow caller pane down", async () => {
 		const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 60, height: 40 }, paneId: "w1:p2" });
 		try {
-			await insideFakeHerdrPane("w1:p1", () => openPiInHerdrPane("/repo", "agent-x", []));
+			await insideFakeHerdrPane("w1:p1", () => openPiInHerdr("pane", "/repo", "agent-x", []));
 			expect(fake.calls[1]).toContain("down");
 		} finally {
 			fake.restore();
@@ -56,7 +56,7 @@ describe("openPiInHerdrPane", () => {
 	test("splits right when the caller pane is not in the layout (a moved pane keeps its launch-time id)", async () => {
 		const fake = fakeHerdr({ layout: { paneId: "w9:p9", width: 60, height: 40 }, paneId: "w1:p2" });
 		try {
-			await insideFakeHerdrPane("w1:p1", () => openPiInHerdrPane("/repo", "agent-x", []));
+			await insideFakeHerdrPane("w1:p1", () => openPiInHerdr("pane", "/repo", "agent-x", []));
 			expect(fake.calls[1]).toContain("right");
 		} finally {
 			fake.restore();
@@ -71,7 +71,7 @@ describe("openPiInHerdrPane", () => {
 		});
 		try {
 			await expect(
-				insideFakeHerdrPane("w1:p1", () => openPiInHerdrPane("/repo", "agent-x", [])),
+				insideFakeHerdrPane("w1:p1", () => openPiInHerdr("pane", "/repo", "agent-x", [])),
 			).rejects.toThrow("agent name agent-x is already used");
 		} finally {
 			json.restore();
@@ -83,10 +83,25 @@ describe("openPiInHerdrPane", () => {
 		});
 		try {
 			await expect(
-				insideFakeHerdrPane("w1:p1", () => openPiInHerdrPane("/repo", "agent-x", [])),
+				insideFakeHerdrPane("w1:p1", () => openPiInHerdr("pane", "/repo", "agent-x", [])),
 			).rejects.toThrow("--current requires HERDR_PANE_ID");
 		} finally {
 			text.restore();
+		}
+	});
+
+	test("a tab needs the caller's workspace id, which herdr sets in every pane it manages", async () => {
+		const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w1:p2" });
+		try {
+			await expect(
+				insideFakeHerdrPane("w1:p1", () => {
+					delete process.env.HERDR_WORKSPACE_ID;
+					return openPiInHerdr("tab", "/repo", "agent-x", []);
+				}),
+			).rejects.toThrow("herdr did not set HERDR_WORKSPACE_ID in this pane");
+			expect(fake.calls).toEqual([]);
+		} finally {
+			fake.restore();
 		}
 	});
 });

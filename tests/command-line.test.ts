@@ -19,7 +19,7 @@ describe("theme option policy", () => {
 			{
 				isolate: false,
 				squash: false,
-				herdr: false,
+				place: undefined,
 				forwardedArgs: ["--no-themes"],
 				task: "do it",
 				warnings: [],
@@ -35,7 +35,7 @@ describe("theme option policy", () => {
 			{
 				isolate: false,
 				squash: false,
-				herdr: false,
+				place: undefined,
 				forwardedArgs: [],
 				task: "do it --theme ./theme.json",
 				warnings: [
@@ -91,5 +91,49 @@ describe("/side-attach stays outside the /side editor machinery", () => {
 			undefined,
 			"Expected /side autocomplete to ignore /side-attach lines",
 		);
+	});
+});
+
+describe("-h place and --tmux in the editor machinery", () => {
+	test("the place after -h is a value token; a quoted place word stays prose", () => {
+		const line = "/side -h tab audit it";
+		const scan = scanAgentCommandLine(line);
+		assert.deepEqual(
+			scan?.tokens.map((token) => [token.semantic, line.slice(token.start, token.end), token.option.semanticId]),
+			[
+				["option", "-h", "herdr"],
+				["value", "tab", "herdr"],
+			],
+		);
+		const quoted = '/side -h "tab" audit it';
+		assert.deepEqual(
+			scanAgentCommandLine(quoted)?.tokens.map((token) => quoted.slice(token.start, token.end)),
+			["-h"],
+		);
+	});
+
+	test("--tmux is an option token, and -t still reads a tools value", () => {
+		const line = "/side --tmux -t read audit it";
+		assert.deepEqual(
+			scanAgentCommandLine(line)?.tokens.map((token) => [token.semantic, line.slice(token.start, token.end)]),
+			[
+				["option", "--tmux"],
+				["option", "-t"],
+				["value", "read"],
+			],
+		);
+	});
+
+	test("option completion continues after the place of -h", () => {
+		const line = "/side -h tab -";
+		const expectation = analyzeAgentEditorInput(line, line.length);
+		assert.equal(expectation?.kind, "option");
+		assert.ok(expectation?.usedSemanticIds.has("herdr"), "Expected -h to count as used");
+	});
+
+	test("a misplaced -h in prose cites its place in the advisory", () => {
+		assert.deepEqual(parseAgentCommand("audit it -h tab", "side").warnings, [
+			"-h tab was included in the prompt body. To specify an argument or an option, place it at the beginning of the command input: /side -h tab audit …",
+		]);
 	});
 });

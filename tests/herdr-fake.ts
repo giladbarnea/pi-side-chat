@@ -4,7 +4,7 @@ import * as childProcess from "node:child_process";
 export type FakeHerdrOptions = {
 	/** The calling pane as `pane layout` reports it. */
 	layout: { paneId: string; width: number; height: number };
-	/** The pane id `pane split` returns. */
+	/** The pane id `pane split` returns, and the root pane id of a created tab or workspace. */
 	paneId: string;
 	/** Fail `agent start` with this stderr text (herdr's JSON error or plain text). */
 	startStderr?: string;
@@ -38,6 +38,12 @@ export function fakeHerdr(options: FakeHerdrOptions): { calls: string[][]; resto
 				stderr: "",
 				failed: false,
 			};
+		if (command === "tab create" || command === "workspace create")
+			return {
+				stdout: JSON.stringify({ result: { root_pane: { pane_id: options.paneId } } }),
+				stderr: "",
+				failed: false,
+			};
 		if (command === "agent start")
 			return options.startStderr === undefined
 				? { stdout: JSON.stringify({ result: { type: "agent_started" } }), stderr: "", failed: false }
@@ -58,11 +64,16 @@ export function fakeHerdr(options: FakeHerdrOptions): { calls: string[][]; resto
 	return { calls, restore: () => spy.mockRestore() };
 }
 
-/** Run with HERDR_ENV and HERDR_PANE_ID set as a herdr-managed pane would have them. */
+/** Run with HERDR_ENV, HERDR_PANE_ID and HERDR_WORKSPACE_ID set as a herdr-managed pane would have them. */
 export async function insideFakeHerdrPane<T>(paneId: string, run: () => Promise<T>): Promise<T> {
-	const previous = { env: process.env.HERDR_ENV, pane: process.env.HERDR_PANE_ID };
+	const previous = {
+		env: process.env.HERDR_ENV,
+		pane: process.env.HERDR_PANE_ID,
+		workspace: process.env.HERDR_WORKSPACE_ID,
+	};
 	process.env.HERDR_ENV = "1";
 	process.env.HERDR_PANE_ID = paneId;
+	process.env.HERDR_WORKSPACE_ID = paneId.split(":")[0];
 	try {
 		return await run();
 	} finally {
@@ -70,5 +81,7 @@ export async function insideFakeHerdrPane<T>(paneId: string, run: () => Promise<
 		else process.env.HERDR_ENV = previous.env;
 		if (previous.pane === undefined) delete process.env.HERDR_PANE_ID;
 		else process.env.HERDR_PANE_ID = previous.pane;
+		if (previous.workspace === undefined) delete process.env.HERDR_WORKSPACE_ID;
+		else process.env.HERDR_WORKSPACE_ID = previous.workspace;
 	}
 }

@@ -122,7 +122,7 @@ Rebase is a fast-forward, in the git sense: the side chat forked from the main c
 
 Delivering the rebase switches the session in place — same file, same session id, transcript redrawn — so `r` is withheld while any side chat is mid-turn, and parked side chats are detached first, each leaving its `Detached session …` line to `/resume` from. When siblings would be detached, the first `r` warns with the count and a second `r` confirms.
 
-### 7. Or give it a pane — herdr
+### 7. Or give it a pane — herdr or tmux
 
 When Pi runs inside [herdr](https://herdr.dev), the terminal multiplexer for coding agents, a side chat does not have to stay in the background at all. Press `h` on any idle or finished side chat and its session opens in a new pane beside you, as an ordinary interactive Pi: same model, same thinking level, same `--tools` and the rest of its dispatch options. Talk to it there.
 
@@ -135,6 +135,10 @@ The row stays in the widget, labeled with its new home:
 Everything the side chat said before it left is still readable in the overlay, and still squashes or rebases. The pane's Pi is the session's only writer from then on; `d` on the row clears it and leaves the usual `Detached session …` line, so the id stays findable.
 
 `/side -h <task>` skips the background entirely: the side chat is born in a new pane, starts from the conversation snapshot (or from nothing with `-i`), and takes the task as its first prompt. Its row points at the pane from birth. Outside herdr, `h` explains why it did nothing and `-h` is an error.
+
+`-h` takes an optional place: `/side -h tab <task>` opens the side chat in a new tab of your workspace, and `/side -h workspace <task>` in a new workspace. Neither takes your focus. The side chat is told where it runs. Because of the place, a task that starts with `pane`, `tab` or `workspace` loses that word after `-h`. Quote it to keep it: `/side -h "tab order" is wrong`. The quotes reach the side chat too.
+
+When Pi runs inside [tmux](https://github.com/tmux/tmux), `/side --tmux <task>` does the same in a new tmux pane beside you. The pane runs `pi` from the tmux server's `PATH`. `--tmux` has no short form, because `-t` is `--tools`. Outside tmux, `--tmux` is an error. The `h` key stays herdr-only.
 
 ## The mechanics
 
@@ -174,7 +178,8 @@ Everything goes through one command: `/side [options] <task>`. Its one companion
 |---|---|
 | `-i`, `--isolate` | Start without the conversation snapshot |
 | `-s`, `--squash` | Deliver the result into the main context on completion |
-| `-h`, `--herdr` | Start the side chat in a new herdr pane instead of the background |
+| `-h`, `--herdr` [`pane`\|`tab`\|`workspace`] | Start the side chat in a new herdr pane (the default), tab, or workspace instead of the background |
+| `--tmux` | Start the side chat in a new tmux pane instead of the background |
 | `-m MODEL` | Model for this side chat (alias of Pi's `--model`) |
 | *pi CLI options* | Forwarded to the side chat — `--thinking`, `--tools`, `--system-prompt`, … |
 
@@ -195,9 +200,9 @@ Everything goes through one command: `/side [options] <task>`. Its one companion
 
 ## Good to know
 
-- Some accepted `pi` options have no effect on a background run (the session, approval, offline, and API-key families). They parse; they just don't do anything yet. A Pi in a herdr pane does not receive them.
+- Some accepted `pi` options have no effect on a background run (the session, approval, offline, and API-key families). They parse; they just don't do anything yet. A Pi in a herdr or tmux pane does not receive them.
 - `c` and `i` copy via `pbcopy`, so they are macOS-only for now.
-- `-h` and `-s` conflict: a side chat in a herdr pane never squashes into this context by itself. Squash its row later instead.
+- `-h` and `-s` conflict, and so do `--tmux` and `-s`: a side chat in a pane never squashes into this context by itself. Squash its row later instead. `-h` and `--tmux` conflict too.
 - The overlay caps very large tool outputs and omits thinking entries.
 
 ## Roadmap
@@ -207,7 +212,8 @@ Everything goes through one command: `/side [options] <task>`. Its one companion
 - [x] Rebase: the raw conversation grafted onto the main session — fast-forward only, compaction-faithful.
 - [x] Attach: a detached session returns to the widget, restored as dispatched.
 - [x] Live syntax coloring and eager autocomplete for the `/side` line.
-- [x] Herdr: hand a side chat's session to a pane beside you, or dispatch straight into one.
+- [x] Herdr: hand a side chat's session to a pane beside you, or dispatch straight into a pane, tab, or workspace.
+- [x] Tmux: dispatch straight into a tmux pane.
 - [ ] Render a side chat's compaction event in the overlay.
 - [ ] Wire the accepted-but-inert `pi` options.
 - [ ] Clipboard support beyond macOS.

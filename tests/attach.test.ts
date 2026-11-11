@@ -14,7 +14,7 @@ import {
 	UNKNOWN_DISPATCH_BASE,
 } from "../attach.ts";
 import { conversationFingerprint, mainContextFingerprint } from "../rebase.ts";
-import { DISPATCH_PREAMBLE, PANE_DISPATCH_PREAMBLE, persistMessages } from "../runner.ts";
+import { DISPATCH_PREAMBLE, PANE_DISPATCH_PREAMBLE, persistMessages, placePreamble } from "../runner.ts";
 import type {
 	AgentMessage,
 	AgentResultMessage,
@@ -114,6 +114,20 @@ describe("splitAtDispatchBoundary — recover a child's own conversation from it
 
 		expect(boundary?.base).toEqual(inherited);
 		expect(boundary?.task).toBe("audit the errors");
+	});
+
+	test("recognizes every place preamble, first fork and refork, as the boundary", () => {
+		for (const place of ["herdr pane", "herdr tab", "herdr workspace", "tmux pane"] as const) {
+			for (const forkedBefore of [false, true]) {
+				const boundary = splitAtDispatchBoundary([
+					...inherited,
+					{ role: "user", content: `${placePreamble(place, forkedBefore)}audit the errors`, timestamp: 3 },
+				] as AgentMessage[]);
+
+				expect(boundary?.base, `${place}, forkedBefore=${forkedBefore}`).toEqual(inherited);
+				expect(boundary?.task, `${place}, forkedBefore=${forkedBefore}`).toBe("audit the errors");
+			}
+		}
 	});
 
 	test("returns undefined when no user message carries the preamble (a /fork child, or the boundary compacted away)", () => {

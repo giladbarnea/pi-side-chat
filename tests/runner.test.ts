@@ -16,6 +16,7 @@ import {
 	handleAgentCommand,
 	PANE_DISPATCH_PREAMBLE,
 	parentExtensionArgs,
+	placePreamble,
 	parseAgentCommand,
 	parseForwardedArgs,
 	persistMessages,
@@ -38,6 +39,7 @@ import { DISPATCH_ENTRY_TYPE } from "../shared.ts";
 import { UserAgentWidget } from "../widget.ts";
 import { withLaunchArgs, withTemporaryAgentDir } from "./agent-dir.ts";
 import { fakeHerdr, insideFakeHerdrPane } from "./herdr-fake.ts";
+import { fakeTmux, insideFakeTmuxPane } from "./tmux-fake.ts";
 
 /** The slice of RunningAgent that waitForInstruction reads and writes. */
 type RunningAgentForTest = Pick<
@@ -48,7 +50,7 @@ type RunningAgentForTest = Pick<
 const base = {
 	isolate: false,
 	squash: false,
-	herdr: false,
+	place: undefined,
 	forwardedArgs: [] as string[],
 	warnings: [] as string[],
 };
@@ -143,12 +145,12 @@ describe("parseAgentCommand — extension options (§3a)", () => {
 	test("consumes -h / --herdr", () => {
 		expect(parseAgentCommand("-h do the thing", "side")).toEqual({
 			...base,
-			herdr: true,
+			place: "herdr pane",
 			task: "do the thing",
 		});
 		expect(parseAgentCommand("--herdr do the thing", "side")).toEqual({
 			...base,
-			herdr: true,
+			place: "herdr pane",
 			task: "do the thing",
 		});
 	});
@@ -157,6 +159,98 @@ describe("parseAgentCommand — extension options (§3a)", () => {
 		expect(() => parseAgentCommand("-h -s do the thing", "side")).toThrow(/-h and -s conflict/);
 		expect(() => parseAgentCommand("--squash --herdr do the thing", "side")).toThrow(
 			/-h and -s conflict/,
+		);
+	});
+
+	test("-h takes an optional place right after it: pane, tab, or workspace", () => {
+		expect(parseAgentCommand("-h pane do the thing", "side")).toEqual({
+			...base,
+			place: "herdr pane",
+			task: "do the thing",
+		});
+		expect(parseAgentCommand("-h tab do the thing", "side")).toEqual({
+			...base,
+			place: "herdr tab",
+			task: "do the thing",
+		});
+		expect(parseAgentCommand("--herdr workspace do the thing", "side")).toEqual({
+			...base,
+			place: "herdr workspace",
+			task: "do the thing",
+		});
+		expect(parseAgentCommand("-h tab -i do the thing", "side")).toEqual({
+			...base,
+			isolate: true,
+			place: "herdr tab",
+			task: "do the thing",
+		});
+	});
+
+	test("a task starting with a place word after -h loses it to the place; quoting keeps it in the task, quotes and all", () => {
+		expect(parseAgentCommand("-h tab order is wrong, fix it", "side")).toEqual({
+			...base,
+			place: "herdr tab",
+			task: "order is wrong, fix it",
+		});
+		expect(parseAgentCommand('-h "tab order is wrong", fix it', "side")).toEqual({
+			...base,
+			place: "herdr pane",
+			task: '"tab order is wrong", fix it',
+		});
+	});
+
+	test("only the exact lowercase place word after -h is a place", () => {
+		expect(parseAgentCommand("-h tabs are wrong", "side")).toEqual({
+			...base,
+			place: "herdr pane",
+			task: "tabs are wrong",
+		});
+		expect(parseAgentCommand("-h Tab order", "side")).toEqual({
+			...base,
+			place: "herdr pane",
+			task: "Tab order",
+		});
+		expect(parseAgentCommand("-i tab order", "side")).toEqual({
+			...base,
+			isolate: true,
+			task: "tab order",
+		});
+	});
+
+	test("-h with only a place and no task is a usage error that names the places", () => {
+		expect(() => parseAgentCommand("-h tab", "side")).toThrow(/Usage: .*-h\|--herdr \[pane\|tab\|workspace\]/);
+	});
+
+	test("consumes --tmux, which has no short spelling and takes no place", () => {
+		expect(parseAgentCommand("--tmux do the thing", "side")).toEqual({
+			...base,
+			place: "tmux pane",
+			task: "do the thing",
+		});
+		expect(parseAgentCommand("--tmux tab order", "side")).toEqual({
+			...base,
+			place: "tmux pane",
+			task: "tab order",
+		});
+	});
+
+	test("-t stays Pi's --tools alias", () => {
+		expect(parseAgentCommand("-t read,grep do the thing", "side")).toEqual({
+			...base,
+			forwardedArgs: ["-t", "read,grep"],
+			task: "do the thing",
+		});
+	});
+
+	test("--tmux conflicts with -h and with -s", () => {
+		expect(() => parseAgentCommand("-h --tmux do the thing", "side")).toThrow(
+			"/side -h and --tmux conflict: a side chat opens in one place.",
+		);
+		expect(() => parseAgentCommand("--tmux -s do the thing", "side")).toThrow(
+			"/side --tmux and -s conflict: a side chat in a tmux pane never squashes into this context.",
+		);
+		expect(() => parseAgentCommand("-h workspace -s do the thing", "side")).toThrow(
+			"/side -h and -s conflict: a side chat in a herdr workspace never squashes into this context.",
 		);
 	});
 
@@ -1360,14 +1454,14 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 	} as unknown as Theme;
 	const tui = { terminal: { columns: 140, rows: 40 }, requestRender: () => undefined } as unknown as TUI;
 
-	async function dispatchContext(cwd: string): Promise<{
+	async function dispatchContext(cwd: string, mainPrompt = "main prompt"): Promise<{
 		ctx: ExtensionCommandContext;
 		main: SessionManager;
 		notifications: Notification[];
 		widgetComponent: () => Component;
 	}> {
 		const main = SessionManager.create(cwd);
-		main.appendMessage({ role: "user", content: "main prompt", timestamp: 1 } as never);
+		main.appendMessage({ role: "user", content: mainPrompt, timestamp: 1 } as never);
 		main.appendMessage({
 			role: "assistant",
 			content: [{ type: "text", text: "main answer" }],
@@ -1532,5 +1626,197 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 				fake.restore();
 			}
 		});
+	});
+
+	/** Dispatch `args` from a fresh main session; returns the notifications and the rendered widget. */
+	async function dispatchInto(
+		cwd: string,
+		args: string,
+		inside: (run: () => Promise<void>) => Promise<void>,
+		mainPrompt?: string,
+	): Promise<{ notifications: Notification[]; row: string }> {
+		const { ctx, notifications, widgetComponent } = await dispatchContext(cwd, mainPrompt);
+		const runningAgents = new Set<RunningAgent>();
+		const widget = new UserAgentWidget(runningAgents, ...noopWidgetDependencies);
+		await inside(() =>
+			handleAgentCommand(fakePi, runningAgents, widget, () => false, () => 1, "side", args, `/side ${args}`, ctx),
+		);
+		expect(notifications.filter(({ level }) => level === "error")).toEqual([]);
+		expect(runningAgents.size, "Expected nothing to run in this process").toBe(0);
+		return { notifications, row: widgetComponent().render(140).join("\n") };
+	}
+
+	test("-h tab opens a tab in the caller's workspace and starts pi in its root pane, told it sits in a herdr tab", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w1:p5" });
+			try {
+				const { notifications, row } = await dispatchInto(cwd, "-h tab audit the migration", (run) =>
+					insideFakeHerdrPane("w1:p1", run),
+				);
+				expect(fake.calls[0]).toEqual(["tab", "create", "--workspace", "w1", "--cwd", cwd, "--no-focus"]);
+				const start = fake.calls[1]!;
+				expect(start.slice(0, 7)).toEqual(["agent", "start", start[2], "--kind", "pi", "--pane", "w1:p5"]);
+				expect(start.at(-1)).toBe(
+					"You are running in a forked session now, in a herdr tab apart from the main session. The user may talk to you here. audit the migration",
+				);
+				expect(fake.calls).toHaveLength(2);
+				expect(notifications.at(-1)).toEqual({ message: "Started /side in herdr pane w1:p5", level: "info" });
+				expect(row).toContain("herdr pane w1:p5");
+			} finally {
+				fake.restore();
+			}
+		});
+	});
+
+	test("-h workspace opens a workspace and starts pi in its root pane, told it sits in a herdr workspace", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w2:p1" });
+			try {
+				await dispatchInto(cwd, "-h workspace audit the migration", (run) => insideFakeHerdrPane("w1:p1", run));
+				expect(fake.calls[0]).toEqual(["workspace", "create", "--cwd", cwd, "--no-focus"]);
+				expect(fake.calls[1]?.slice(5, 7)).toEqual(["--pane", "w2:p1"]);
+				expect(fake.calls[1]?.at(-1)).toBe(
+					"You are running in a forked session now, in a herdr workspace apart from the main session. The user may talk to you here. audit the migration",
+				);
+			} finally {
+				fake.restore();
+			}
+		});
+	});
+
+	test("a pane dispatch from a session that already carries a dispatch preamble says yet another forked session", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w1:p2" });
+			try {
+				await dispatchInto(
+					cwd,
+					"-h audit the migration",
+					(run) => insideFakeHerdrPane("w1:p1", run),
+					`${PANE_DISPATCH_PREAMBLE}plan the migration`,
+				);
+				expect(fake.calls.find((call) => call[1] === "start")?.at(-1)).toBe(
+					"You are running in yet another forked session now, in a herdr pane beside the main session. The user may talk to you here. audit the migration",
+				);
+			} finally {
+				fake.restore();
+			}
+		});
+	});
+
+	test("--tmux splits the calling tmux pane without focus and runs pi there directly, told it sits in a tmux pane", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const fake = fakeTmux({ size: { width: 200, height: 50 }, paneId: "%7" });
+			try {
+				const { notifications, row } = await withLaunchArgs(["-e", "/opt/extensions/launch.ts"], () =>
+					dispatchInto(cwd, "--tmux --tools read,grep --no-session audit the migration", (run) =>
+						insideFakeTmuxPane("%3", run),
+					),
+				);
+				expect(fake.calls[0]).toEqual(["display-message", "-p", "-t", "%3", "#{pane_width} #{pane_height}"]);
+				const split = fake.calls[1]!;
+				const sessionFile = split[split.indexOf("--session") + 1] as string;
+				expect(split).toEqual([
+					"split-window",
+					"-h",
+					"-d",
+					"-t",
+					"%3",
+					"-c",
+					cwd,
+					"-P",
+					"-F",
+					"#{pane_id}",
+					"pi",
+					"--extension",
+					"/opt/extensions/launch.ts",
+					"--tools",
+					"read,grep",
+					"--provider",
+					"openai-codex",
+					"--model",
+					"gpt-5.6-luna",
+					"--thinking",
+					"high",
+					"--session",
+					sessionFile,
+					"You are running in a forked session now, in a tmux pane beside the main session. The user may talk to you here. audit the migration",
+				]);
+				expect(existsSync(sessionFile), "Expected the child file on disk before pi starts").toBe(true);
+				expect(notifications.at(-1)).toEqual({ message: "Started /side in tmux pane %7", level: "info" });
+				expect(row).toContain("tmux pane %7");
+				expect(row).not.toContain("herdr");
+			} finally {
+				fake.restore();
+			}
+		});
+	});
+
+	test("--tmux splits a narrow or tall pane down", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const fake = fakeTmux({ size: { width: 90, height: 50 }, paneId: "%7" });
+			try {
+				await dispatchInto(cwd, "--tmux audit the migration", (run) => insideFakeTmuxPane("%3", run));
+				expect(fake.calls[1]?.slice(0, 2)).toEqual(["split-window", "-v"]);
+			} finally {
+				fake.restore();
+			}
+		});
+	});
+
+	test("--tmux outside tmux is a command error that leaves no file behind", async () => {
+		await withTemporaryAgentDir(async (cwd) => {
+			const { ctx, main, notifications } = await dispatchContext(cwd);
+			const runningAgents = new Set<RunningAgent>();
+			const widget = new UserAgentWidget(runningAgents, ...noopWidgetDependencies);
+			const fake = fakeTmux({ size: { width: 200, height: 50 }, paneId: "%7" });
+			delete process.env.TMUX;
+			delete process.env.TMUX_PANE;
+			try {
+				await handleAgentCommand(
+					fakePi,
+					runningAgents,
+					widget,
+					() => false,
+					() => 1,
+					"side",
+					"--tmux audit the migration",
+					"/side --tmux audit the migration",
+					ctx,
+				);
+				expect(notifications.at(-1)).toEqual({ message: "/side --tmux needs Pi to run inside tmux", level: "error" });
+				expect(fake.calls).toEqual([]);
+				const sessionFiles = readdirSync(main.getSessionDir()).filter((name) => name.endsWith(".jsonl"));
+				expect(sessionFiles, "Expected no child file: main itself has one, nothing else").toHaveLength(1);
+			} finally {
+				fake.restore();
+			}
+		});
+	});
+});
+
+describe("placePreamble — one text per place, each with a refork variant", () => {
+	test("the herdr pane text stays byte-identical to the one every pane child so far carries", () => {
+		expect(placePreamble("herdr pane", false)).toBe(
+			"You are running in a forked session now, in a herdr pane beside the main session. The user may talk to you here. ",
+		);
+		expect(PANE_DISPATCH_PREAMBLE).toBe(placePreamble("herdr pane", false));
+	});
+
+	test("each place names itself; a pane sits beside the main session, a tab or workspace apart from it", () => {
+		expect(
+			(["herdr pane", "herdr tab", "herdr workspace", "tmux pane"] as const).flatMap((place) => [
+				placePreamble(place, false),
+				placePreamble(place, true),
+			]),
+		).toEqual([
+			"You are running in a forked session now, in a herdr pane beside the main session. The user may talk to you here. ",
+			"You are running in yet another forked session now, in a herdr pane beside the main session. The user may talk to you here. ",
+			"You are running in a forked session now, in a herdr tab apart from the main session. The user may talk to you here. ",
+			"You are running in yet another forked session now, in a herdr tab apart from the main session. The user may talk to you here. ",
+			"You are running in a forked session now, in a herdr workspace apart from the main session. The user may talk to you here. ",
+			"You are running in yet another forked session now, in a herdr workspace apart from the main session. The user may talk to you here. ",
+			"You are running in a forked session now, in a tmux pane beside the main session. The user may talk to you here. ",
+			"You are running in yet another forked session now, in a tmux pane beside the main session. The user may talk to you here. ",
+		]);
 	});
 });

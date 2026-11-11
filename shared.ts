@@ -25,11 +25,15 @@ export type AgentStatus =
 	| "posted"
 	| "error";
 
+export type HerdrScope = "pane" | "tab" | "workspace";
+/** Where -h or --tmux opens a side chat instead of the background. Each place names itself in the child's preamble. */
+export type InteractivePlace = `herdr ${HerdrScope}` | "tmux pane";
+
 export type ParsedAgentCommand = {
 	isolate: boolean;
 	squash: boolean;
-	/** -h/--herdr: open the agent in a new herdr pane instead of running it in the background. */
-	herdr: boolean;
+	/** -h [pane|tab|workspace] or --tmux; undefined runs the side chat in the background. */
+	place: InteractivePlace | undefined;
 	/** Leading pi CLI tokens (minus the extension's own options) to forward to the child, e.g. ["--thinking", "high"]. */
 	forwardedArgs: string[];
 	task: string;
@@ -166,8 +170,8 @@ export type CompletedAgent = {
 	toolUses: number;
 	turnCount: number;
 	contextPercent?: number;
-	/** The herdr pane whose Pi now owns the session, once the agent was opened there. */
-	herdrPane?: string;
+	/** Where the Pi that now owns the session runs, e.g. "herdr pane w1:p3", once the agent was opened there. */
+	paneLabel?: string;
 };
 
 /** The mechanism that fast-forwards a child conversation onto the main session, injected into the widget. */

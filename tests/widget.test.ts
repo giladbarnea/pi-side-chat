@@ -1503,7 +1503,7 @@ describe("UserAgentWidget herdr", () => {
 		const harness = buildIdleHarness();
 		harness.agent.responseText = "";
 		harness.agent.turnCount = 0;
-		harness.widget.addHerdrDispatch(harness.agent, "w1:p4");
+		harness.widget.addPaneDispatch(harness.agent, "herdr pane w1:p4");
 
 		const lines = harness.widgetComponent().render(140);
 		const header = lines.find((line) => line.includes("/side") && line.includes("w1:p4")) ?? "";
