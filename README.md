@@ -5,7 +5,7 @@
 > **You deserve your own side chats, too. It's only fair.**
 
 [![pi extension](https://img.shields.io/badge/pi-extension-blueviolet)](https://github.com/earendil-works/pi)
-[![npm version](https://img.shields.io/npm/v/%40giladbarnea%2Fpi-side-chat?logo=npm)](https://www.npmjs.com/package/@giladbarnea/pi-side-chat)
+[![npm version](https://img.shields.io/npm/v/%40giladbarnea%2Fside?logo=npm)](https://www.npmjs.com/package/@giladbarnea/side)
 [![tests](https://img.shields.io/github/actions/workflow/status/giladbarnea/pi-side-chat/test.yml?branch=main&label=tests&logo=github)](https://github.com/giladbarnea/pi-side-chat/actions/workflows/test.yml)
 [![license](https://img.shields.io/github/license/giladbarnea/pi-side-chat)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -38,7 +38,7 @@ The instant you press Enter, a side chat forks off with a snapshot of the curren
 ## Install
 
 ```sh
-pi install npm:@giladbarnea/pi-side-chat
+pi install npm:@giladbarnea/side
 ```
 
 Coming from `pi-user-agents`? This is the same extension under a new name. Remove the old package first (`pi remove npm:@giladbarnea/pi-user-agents`), then install this one. `/agent` is now `/side` and `/agent-attach` is now `/side-attach`. Sessions dispatched by the old package still attach and render. Do not keep both installed: each loads its own widget and editor hooks.

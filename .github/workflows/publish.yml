@@ -111,7 +111,7 @@ jobs:
           version="${{ needs.publish.outputs.version }}"
           previous_tag="$(git describe --tags --abbrev=0 HEAD^)"
           notes="$(
-            printf 'Published to [npm](https://www.npmjs.com/package/@giladbarnea/pi-user-agents/v/%s).\n\n' "$version"
+            printf 'Published to [npm](https://www.npmjs.com/package/@giladbarnea/side/v/%s).\n\n' "$version"
             printf '## Changes\n\n'
             git log \
               --format="- %s ([%h]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/%H))" \
