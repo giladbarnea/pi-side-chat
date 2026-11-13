@@ -1638,3 +1638,73 @@ describe("UserAgentWidget attach queries", () => {
 		expect(customCalls).toHaveLength(2);
 	});
 });
+
+describe("mouse wheel over the overlay", () => {
+	test("the wheel scrolls the viewer, not the transcript, while outside wheel and selection stay Pi's", async () => {
+		const { TuiAltScreen, Text } = await import("@earendil-works/pi-tui");
+		const terminal = {
+			onInput: (_data: string) => {},
+			start(onInput: (data: string) => void) {
+				this.onInput = onInput;
+			},
+			stop() {},
+			async drainInput() {},
+			write() {},
+			get columns() {
+				return 120;
+			},
+			get rows() {
+				return 20;
+			},
+			get kittyProtocolActive() {
+				return false;
+			},
+			moveBy() {},
+			hideCursor() {},
+			showCursor() {},
+			clearLine() {},
+			clearFromCursor() {},
+			clearScreen() {},
+			setTitle() {},
+			setProgress() {},
+			setProgramStatus() {},
+		};
+		const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+		const sgr = (button: number, column: number, row: number, release = false) =>
+			`\x1b[<${button};${column};${row}${release ? "m" : "M"}`;
+		const wheelUp = 64;
+		const wheelDown = 65;
+		// TuiAltScreen keeps its viewport and selection state private; the test reads them through `any`.
+		const tui = new TuiAltScreen(terminal as never, false, undefined, {}) as any;
+		tui.addChild(new Text(Array.from({ length: 200 }, (_, index) => `transcript line ${index}`).join("\n"), 0, 0));
+		tui.start();
+		await settle();
+		const { viewer } = openStreamingViewer();
+		tui.showOverlay(viewer, { anchor: "center", width: "90%", maxHeight: "85%" });
+		await settle();
+		const top = tui.viewportTop;
+		expect(viewer.render(108).join("\n"), "The viewer starts at its tail").toContain("message 11");
+
+		for (let notch = 0; notch < 6; notch += 1) terminal.onInput(sgr(wheelUp, 60, 10));
+		await settle();
+		expect(tui.viewportTop, "The hidden transcript must not move under the overlay").toBe(top);
+		expect(viewer.render(108).join("\n"), "Wheel up scrolls the viewer away from its tail").not.toContain("message 11");
+
+		for (let notch = 0; notch < 20; notch += 1) terminal.onInput(sgr(wheelDown, 60, 10));
+		await settle();
+		expect(viewer.render(108).join("\n"), "Wheel down scrolls the viewer back to its tail").toContain("message 11");
+		expect(tui.viewportTop).toBe(top);
+
+		terminal.onInput(sgr(wheelUp, 2, 1));
+		await settle();
+		expect(tui.viewportTop, "Wheel outside the overlay still scrolls the transcript").toBe(top - 1);
+
+		terminal.onInput(sgr(0, 20, 8));
+		terminal.onInput(sgr(32, 40, 9));
+		terminal.onInput(sgr(0, 40, 9, true));
+		await settle();
+		expect(tui.selectionAnchor, "Press and drag over the overlay still start Pi's own selection").toBeDefined();
+		expect(tui.selectionFocus).toBeDefined();
+		tui.stop();
+	});
+});

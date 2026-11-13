@@ -7,6 +7,8 @@ import {
 	matchesKey,
 	sliceByColumn,
 	type TUI,
+	type TuiMouseEvent,
+	type TuiMouseEventResult,
 	truncateToWidth,
 	visibleWidth,
 	wrapTextWithAnsi,
@@ -283,6 +285,13 @@ export class AgentViewer implements Component {
 		if (step === undefined) return false;
 		this.scrollBy(step);
 		return true;
+	}
+
+	/** Pi's fullscreen mode offers wheel events to the overlay under the pointer; other mouse events stay Pi's. */
+	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+		if (event.type !== "wheel" || !event.wheelDelta) return undefined;
+		this.scrollBy(event.wheelDelta);
+		return { handled: true };
 	}
 
 	private scrollBy(lines: number): void {

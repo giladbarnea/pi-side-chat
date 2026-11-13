@@ -196,7 +196,7 @@ Everything goes through one command: `/side [options] <task>`. Its one companion
 | Widget / overlay | `h` | Open the side chat's session in a new herdr pane |
 | Widget / overlay | `c` | Copy the latest response |
 | Widget / overlay | `i` | Copy the side chat's full session ID |
-| Overlay | scroll · `End` | Pause tail-following · resume it |
+| Overlay | scroll (keys, or the mouse wheel in fullscreen mode) · `End` | Pause tail-following · resume it |
 
 ## Good to know
 
