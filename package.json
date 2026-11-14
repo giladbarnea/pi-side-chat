@@ -1,6 +1,6 @@
 {
   "name": "@giladbarnea/side",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "description": "Side chats for Pi: run, view, and steer background sessions beside the main agent.",
   "keywords": [
     "pi-package",
