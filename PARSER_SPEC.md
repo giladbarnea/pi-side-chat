@@ -11,7 +11,7 @@ from the declaration in `command-line.ts`.
 type ParsedAgentCommand = {
   isolate: boolean;          // -i / --isolate
   squash: boolean;           // -s / --squash
-  herdr: boolean;            // -h / --herdr
+  place: InteractivePlace | undefined; // -h [pane|tab|workspace] → "herdr pane" | "herdr tab" | "herdr workspace"; --tmux → "tmux pane"
   forwardedArgs: string[];   // recognized pi option tokens (+values) in input order, e.g. ["--thinking","high"]
   task: string;              // the prose prompt (backslash escapes applied, quotes kept). Never empty.
   warnings: string[];        // advisory messages (see §5). May be empty.
@@ -45,12 +45,22 @@ leading whitespace (unchanged from today).
 | `-m`, `--model` | value | Added to `forwardedArgs` as canonical `--model <value>` |
 | `-i`, `--isolate` | boolean | Consumed here; `isolate = true` |
 | `-s`, `--squash` | boolean | Consumed here; `squash = true` |
-| `-h`, `--herdr` | boolean | Consumed here; `herdr = true` |
+| `-h`, `--herdr` | boolean, optional place | Consumed here; `place = "herdr <place>"`, `"herdr pane"` when no place follows |
+| `--tmux` | boolean | Consumed here; `place = "tmux pane"` |
 
 `-m` and `--model` are one semantic option. Both require an exact live model ID, canonical
 `provider/id` reference, or user-defined alias before resolving through Pi's `resolveCliModel()`
 path. A preceding `--provider` scopes either spelling. `-s` is the extension's squash option and
 `-h` its herdr option; the two conflict, and a submission carrying both is a hard **error**.
+`--tmux` conflicts with `-s` the same way, and with `-h`: a side chat opens in one place.
+`--tmux` has no short spelling, because `-t` is Pi's `--tools` alias (§3b).
+
+**The optional place of `-h`.** When the token right after `-h` is exactly `pane`, `tab`, or
+`workspace` (unquoted, lowercase), it is consumed as `-h`'s value; otherwise `-h` takes no value
+and the place is `pane`. The option table declares this as `choices` on a boolean option.
+Two consequences, locked in §9: a task whose first word is a place word loses it to the place
+(`-h tab order is wrong` opens a tab with the task `order is wrong`), and quoting that word keeps
+it in the task together with its quotes, because prose keeps quotes (§6a).
 A model option with no value and no remaining task ends in the normal
 **usage error**.
 
@@ -115,7 +125,7 @@ While in prose mode, if an **unescaped, unquoted** token is a **recognized** opt
 
 > ``<opt> [<value>] was included in the prompt body. To specify an argument or an option, place it at the beginning of the command input: /<command> <opt> [<value>] <first-prose-word> …``
 
-- `<value>` appears only for value-taking options; it is the token that immediately follows in the input.
+- `<value>` appears only for value-taking options, and for `-h` followed by a place word; it is the token that immediately follows in the input.
 - `<first-prose-word>` is the first whitespace-delimited word of the prose.
 - Unknown arg-looking tokens in prose (`-g`, `--doesnotexist`) → **no** warning.
 - Quoted or backslash-escaped option-looking tokens → **no** warning.
@@ -178,14 +188,19 @@ recognition and arity come from the shared declaration.
 - Bare `-m` (no value) → usage error.
 - Empty task after consuming options → usage error.
 - Blocked option leading → hard error; in prose → warning.
-- `-h` together with `-s` → hard error.
+- `-h` or `--tmux` together with `-s` → hard error. `-h` together with `--tmux` → hard error.
+- `-h tab order is wrong` → place `herdr tab`, task `order is wrong`. The same holds for `pane`
+  and `workspace`. Only the exact lowercase word is a place: `-h tabs …` and `-h Tab …` keep it.
+- `-h "tab order is wrong", fix it` → place `herdr pane`, task `"tab order is wrong", fix it`:
+  quoting escapes the place, and the quotes reach the child.
 - No `--` options terminator (backslash/quotes handle "task starts with a dash").
 - Value-taking option with no following token → the option is still recorded (no value); no crash.
 - Multiple known options in prose → one warning per occurrence, in order.
 
 ## 10. Pre-submit cursor analysis and eager autocomplete
 
-Cursor analysis recognizes only exact `/side` command lines. It
+Cursor analysis recognizes only exact `/side` command lines. A place word right after `-h`
+is skipped, so option completion continues after it; places are not offered as completions. It
 preserves the active token's source span and reports either an option fragment, a value
 fragment with its owning declaration, or no completion once parsing has entered terminal
 prose. Quoted and backslash-escaped dashes therefore never reopen option completion.
@@ -245,8 +260,8 @@ and editor coloring. It runs the §2 state machine once and emits, alongside the
 source spans:
 
 - `option` — a recognized, non-blocked leading option (extension-owned or forwarded);
-- `value` — the value consumed by a leading value-taking option. A quoted value's span
-  includes its surrounding quotes;
+- `value` — the value consumed by a leading value-taking option, or the place after `-h`.
+  A quoted value's span includes its surrounding quotes;
 - `invalid-value` — a leading closed-set value rejected by the same validation used at
   submission and session creation: Pi's argument parser for thinking levels and tool-list
   syntax (`+name`/`-name` entries cannot mix with plain names), exact live model IDs or

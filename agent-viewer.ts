@@ -7,6 +7,8 @@ import {
 	matchesKey,
 	sliceByColumn,
 	type TUI,
+	type TuiMouseEvent,
+	type TuiMouseEventResult,
 	truncateToWidth,
 	visibleWidth,
 	wrapTextWithAnsi,
@@ -20,7 +22,6 @@ import {
 	formatMs,
 	formatToolUses,
 	formatTurns,
-	herdrPaneLabel,
 	logSteering,
 	mainContextLabel,
 	truncatePlain,
@@ -286,6 +287,13 @@ export class AgentViewer implements Component {
 		return true;
 	}
 
+	/** Pi's fullscreen mode offers wheel events to the overlay under the pointer; other mouse events stay Pi's. */
+	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+		if (event.type !== "wheel" || !event.wheelDelta) return undefined;
+		this.scrollBy(event.wheelDelta);
+		return { handled: true };
+	}
+
 	private scrollBy(lines: number): void {
 		const maxScroll = Math.max(
 			0,
@@ -324,13 +332,13 @@ export class AgentViewer implements Component {
 					: this.agent.durationMs,
 			),
 		);
-		const herdrPane = running ? undefined : this.agent.herdrPane;
+		const paneLabel = running ? undefined : this.agent.paneLabel;
 		const status = live
 			? "running"
 			: idle
 				? "idle"
-				: herdrPane
-					? herdrPaneLabel(herdrPane)
+				: paneLabel
+					? paneLabel
 					: failed
 						? "failed"
 						: "completed";
@@ -415,7 +423,7 @@ export class AgentViewer implements Component {
 					this.actions.herdrBlockReason() === undefined ? th.fg("dim", "h herdr") : "",
 					isLiveAgent(this.agent) ? th.fg("dim", "Ctrl+x interrupt") : "",
 					mainContext ? th.fg("dim", mainContext) : "",
-					herdrPane ? th.fg("dim", herdrPaneLabel(herdrPane)) : "",
+					paneLabel ? th.fg("dim", paneLabel) : "",
 					isLiveAgent(this.agent) ? th.fg("dim", "Esc hide") : "",
 					th.fg(
 						this.confirmation.isArmedOn("detach") ? "error" : "dim",
@@ -617,9 +625,9 @@ export class AgentViewer implements Component {
 			return [...lines, this.theme.fg("dim", "───"), ...errorLines];
 		}
 		if (lines.length > 0) return lines;
-		const herdrPane = isRunningAgent(this.agent) ? undefined : this.agent.herdrPane;
+		const paneLabel = isRunningAgent(this.agent) ? undefined : this.agent.paneLabel;
 		return [
-			this.theme.fg("dim", herdrPane ? `runs in ${herdrPaneLabel(herdrPane)}` : "(empty response)"),
+			this.theme.fg("dim", paneLabel ? `runs in ${paneLabel}` : "(empty response)"),
 		];
 	}
 

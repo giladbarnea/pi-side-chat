@@ -22,8 +22,9 @@ import {
 	forwardedArgsForPane,
 	parseAgentCommand,
 } from "./command-line.js";
-import { herdrAgentName, insideHerdr, openPiInHerdrPane } from "./herdr.js";
+import { herdrAgentName, insideHerdr, openPiInHerdr } from "./herdr.js";
 import { conversationFingerprint, mainContextFingerprint } from "./rebase.js";
+import { insideTmux, openPiInTmuxPane, tmuxPaneLabel } from "./tmux.js";
 import type {
 	AgentCommandName,
 	AgentMessage,
@@ -32,6 +33,8 @@ import type {
 	ChildCompactionMessage,
 	ExtensionAPI,
 	ExtensionCommandContext,
+	HerdrScope,
+	InteractivePlace,
 	Model,
 	ParsedAgentCommand,
 	RebaseDelivery,
@@ -98,8 +101,9 @@ async function startUserAgent(
 	ctx: ExtensionCommandContext,
 ): Promise<void> {
 	const parsed = parseAgentCommand(args, command);
-	if (parsed.herdr && !insideHerdr())
-		throw new Error(`/${command} -h needs Pi to run inside a herdr pane`);
+	const launcher = parsed.place && PLACE_LAUNCHERS[parsed.place];
+	if (launcher && !launcher.available())
+		throw new Error(`/${command} ${launcher.flag} needs Pi to run ${launcher.requirement}`);
 	const parsedForwardedArgs = parseForwardedArgs(parsed.forwardedArgs);
 	const modelRuntime = parentModelRuntime(ctx);
 	const forwarded = resolveForwardedOptions(parsedForwardedArgs, modelRuntime);
@@ -132,8 +136,8 @@ async function startUserAgent(
 		widget.setUI(ctx.ui);
 		for (const warning of parsed.warnings) ctx.ui.notify(warning, "warning");
 	}
-	if (parsed.herdr) {
-		await dispatchToHerdrPane(
+	if (parsed.place) {
+		await dispatchToPlace(
 			ctx,
 			widget,
 			childSessionManager,
@@ -141,6 +145,7 @@ async function startUserAgent(
 			model,
 			thinkingLevel,
 			parsed,
+			parsed.place,
 			runningAgent,
 		);
 		return;
@@ -176,12 +181,43 @@ async function startUserAgent(
 	});
 }
 
+type PlaceLauncher = {
+	/** The option that asks for the place, as error messages name it. */
+	flag: string;
+	requirement: string;
+	available(): boolean;
+	/** Open the place and start `pi <piArgs>` in it; resolves with the pane's label. */
+	open(cwd: string, agentName: string, piArgs: readonly string[]): Promise<string>;
+};
+
+const PLACE_LAUNCHERS: Record<InteractivePlace, PlaceLauncher> = {
+	"herdr pane": herdrLauncher("pane"),
+	"herdr tab": herdrLauncher("tab"),
+	"herdr workspace": herdrLauncher("workspace"),
+	"tmux pane": {
+		flag: "--tmux",
+		requirement: "inside tmux",
+		available: insideTmux,
+		open: async (cwd, _agentName, piArgs) => tmuxPaneLabel(await openPiInTmuxPane(cwd, piArgs)),
+	},
+};
+
+function herdrLauncher(scope: HerdrScope): PlaceLauncher {
+	return {
+		flag: "-h",
+		requirement: "inside a herdr pane",
+		available: insideHerdr,
+		open: async (cwd, agentName, piArgs) =>
+			herdrPaneLabel(await openPiInHerdr(scope, cwd, agentName, piArgs)),
+	};
+}
+
 /**
- * An agent born in a herdr pane: the child file is flushed here, then the pane's Pi resumes it
- * with the dispatch options as CLI flags and takes the preambled task as its first prompt.
- * Nothing runs in this process, so the widget row is a pointer at the pane from birth.
+ * An agent born in a herdr or tmux pane: the child file is flushed here, then the pane's Pi
+ * resumes it with the dispatch options as CLI flags and takes the preambled task as its first
+ * prompt. Nothing runs in this process, so the widget row is a pointer at the pane from birth.
  */
-async function dispatchToHerdrPane(
+async function dispatchToPlace(
 	ctx: ExtensionCommandContext,
 	widget: UserAgentWidget,
 	childSessionManager: SessionManager,
@@ -189,6 +225,7 @@ async function dispatchToHerdrPane(
 	model: Model,
 	thinkingLevel: ThinkingLevel,
 	parsed: ParsedAgentCommand,
+	place: InteractivePlace,
 	runningAgent: RunningAgent,
 ): Promise<void> {
 	persistMessages(childSessionManager, inheritedMessages, []);
@@ -200,7 +237,8 @@ async function dispatchToHerdrPane(
 	const sessionFile = flushSessionFile(childSessionManager);
 	// Explicit on the CLI too: an isolated child's file has no messages, and pi then takes the
 	// flags over the file.
-	const paneId = await openPiInHerdrPane(ctx.cwd, herdrAgentName(runningAgent.sessionId), [
+	const preamble = placePreamble(place, carriesDispatchPreamble(inheritedMessages));
+	const paneLabel = await PLACE_LAUNCHERS[place].open(ctx.cwd, herdrAgentName(runningAgent.sessionId), [
 		...parentExtensionArgs(),
 		...forwardedArgsForPane(parsed.forwardedArgs),
 		"--provider",
@@ -211,12 +249,12 @@ async function dispatchToHerdrPane(
 		thinkingLevel,
 		"--session",
 		sessionFile,
-		PANE_DISPATCH_PREAMBLE + parsed.task,
+		preamble + parsed.task,
 	]);
-	logSteering(runningAgent.id, "agent-dispatched-to-herdr", { paneId });
+	logSteering(runningAgent.id, "agent-dispatched-to-pane", { paneLabel });
 	if (!ctx.hasUI) return;
-	widget.addHerdrDispatch(runningAgent, paneId);
-	ctx.ui.notify(`Started /${runningAgent.command} in ${herdrPaneLabel(paneId)}`, "info");
+	widget.addPaneDispatch(runningAgent, paneLabel);
+	ctx.ui.notify(`Started /${runningAgent.command} in ${paneLabel}`, "info");
 }
 
 /**
@@ -590,8 +628,9 @@ async function runAgentLifecycle(
 			widget,
 		);
 		unsubscribe = subscribeToChildSession(session, runningAgent, widget);
-		const forkedBefore = inheritedMessages.some((message) => dispatchTask(message) !== undefined);
-		const preamble = forkedBefore ? REFORK_DISPATCH_PREAMBLE : DISPATCH_PREAMBLE;
+		const preamble = carriesDispatchPreamble(inheritedMessages)
+			? REFORK_DISPATCH_PREAMBLE
+			: DISPATCH_PREAMBLE;
 		await runChildTurns(pi, isShuttingDown, preamble + task, session, runningAgent, widget);
 	} catch (error) {
 		reportAgentFailure(pi, isShuttingDown, runningAgent, widget, error);
@@ -641,18 +680,36 @@ export const DISPATCH_PREAMBLE =
 /** A background dispatch from a session that already carries a dispatch preamble: a fork of a fork. */
 export const REFORK_DISPATCH_PREAMBLE =
 	"You are running in yet another forked background process now, concurrently with the main session. ";
-/** The -h dispatch's preamble: that child is interactive, and the user may talk to it in its pane. */
-export const PANE_DISPATCH_PREAMBLE =
-	"You are running in a forked session now, in a herdr pane beside the main session. The user may talk to you here. ";
+/**
+ * The -h or --tmux dispatch's preamble: that child is interactive, and the user may talk to it
+ * where it runs. A pane sits beside the main session; a tab or workspace sits apart from it.
+ *
+ * @example placePreamble("herdr tab", false) // "You are running in a forked session now, in a herdr tab apart from the main session. The user may talk to you here. "
+ */
+export function placePreamble(place: InteractivePlace, forkedBefore: boolean): string {
+	const fork = forkedBefore ? "yet another forked session" : "a forked session";
+	const relation = place.endsWith(" pane") ? "beside" : "apart from";
+	return `You are running in ${fork} now, in a ${place} ${relation} the main session. The user may talk to you here. `;
+}
+/** The only place preamble before tabs, workspaces and tmux: every older pane child carries it. */
+export const PANE_DISPATCH_PREAMBLE = placePreamble("herdr pane", false);
 /** The background preamble through 0.0.17; children dispatched then still carry it, and attach must recognize them. */
 const LEGACY_DISPATCH_PREAMBLE =
 	"You are running in an ephemeral, forked background process now, concurrently with the main session. ";
 const DISPATCH_PREAMBLES = [
 	DISPATCH_PREAMBLE,
 	REFORK_DISPATCH_PREAMBLE,
-	PANE_DISPATCH_PREAMBLE,
 	LEGACY_DISPATCH_PREAMBLE,
-] as const;
+	...(Object.keys(PLACE_LAUNCHERS) as InteractivePlace[]).flatMap((place) => [
+		placePreamble(place, false),
+		placePreamble(place, true),
+	]),
+];
+
+/** Whether a context already carries a dispatch preamble, so a dispatch from it is a fork of a fork. */
+function carriesDispatchPreamble(messages: readonly AgentMessage[]): boolean {
+	return messages.some((message) => dispatchTask(message) !== undefined);
+}
 
 /** The task of a user message that carries a dispatch preamble, or undefined for any other message. */
 export function dispatchTask(message: AgentMessage): string | undefined {

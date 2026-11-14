@@ -1,4 +1,5 @@
 import * as childProcess from "node:child_process";
+import type { HerdrScope } from "./shared.js";
 
 /** Whether this Pi runs inside a herdr pane, so new panes can be split from it. */
 export function insideHerdr(): boolean {
@@ -16,13 +17,20 @@ export function herdrAgentName(sessionId: string): string {
 	return `side-${sessionId.slice(0, 13)}`;
 }
 
-/** Split the calling pane and start `pi <piArgs>` in the new pane; resolves with the pane id once pi is ready. */
-export async function openPiInHerdrPane(
+const OPEN_PANE: Record<HerdrScope, (cwd: string) => Promise<string>> = {
+	pane: splitPane,
+	tab: createTab,
+	workspace: createWorkspace,
+};
+
+/** Open a new pane, tab, or workspace and start `pi <piArgs>` in its pane; resolves with the pane id once pi is ready. */
+export async function openPiInHerdr(
+	scope: HerdrScope,
 	cwd: string,
 	agentName: string,
 	piArgs: readonly string[],
 ): Promise<string> {
-	const paneId = await splitPane(cwd);
+	const paneId = await OPEN_PANE[scope](cwd);
 	await startPi(paneId, agentName, piArgs);
 	return paneId;
 }
@@ -41,6 +49,30 @@ export async function splitPane(cwd: string): Promise<string> {
 		"--no-focus",
 	])) as { pane: { pane_id: string } };
 	return split.pane.pane_id;
+}
+
+/** Create a tab in the calling pane's workspace without taking the user's focus; resolves with its root pane's id. */
+async function createTab(cwd: string): Promise<string> {
+	const workspaceId = process.env.HERDR_WORKSPACE_ID;
+	if (!workspaceId) throw new Error("herdr did not set HERDR_WORKSPACE_ID in this pane");
+	const created = (await herdr([
+		"tab",
+		"create",
+		"--workspace",
+		workspaceId,
+		"--cwd",
+		cwd,
+		"--no-focus",
+	])) as { root_pane: { pane_id: string } };
+	return created.root_pane.pane_id;
+}
+
+/** Create a workspace without taking the user's focus; resolves with its root pane's id. */
+async function createWorkspace(cwd: string): Promise<string> {
+	const created = (await herdr(["workspace", "create", "--cwd", cwd, "--no-focus"])) as {
+		root_pane: { pane_id: string };
+	};
+	return created.root_pane.pane_id;
 }
 
 /** Start `pi <piArgs>` in a shell pane as a named herdr agent; resolves once pi is ready for input. */

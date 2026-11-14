@@ -1,4 +1,4 @@
-import type { AgentCommandName, ParsedAgentCommand } from "./shared.js";
+import type { AgentCommandName, HerdrScope, ParsedAgentCommand } from "./shared.js";
 
 export type ValueCompletionDomain = "model" | "path" | "provider" | "thinking" | "tool";
 /** `inert`: forwarded to a background run, where it has no effect, and dropped from a herdr pane's Pi. */
@@ -9,6 +9,8 @@ export type AgentOptionDefinition = {
 	names: readonly string[];
 	role: AgentOptionRole;
 	arity: "boolean" | "value";
+	/** A boolean option's optional value: one of these exact tokens right after it is consumed as its value. */
+	choices?: readonly string[];
 	forwardName?: string;
 	placeholder?: string;
 	completionDomain?: ValueCompletionDomain;
@@ -59,7 +61,8 @@ export type AgentSemanticToken = {
 export type AgentArgumentScan = {
 	isolate: boolean;
 	squash: boolean;
-	herdr: boolean;
+	herdrScope: HerdrScope | undefined;
+	tmux: boolean;
 	forwardedArgs: string[];
 	/** Ordered, non-overlapping semantic tokens over the argument text. Prose stays untokenized. */
 	tokens: AgentSemanticToken[];
@@ -129,8 +132,17 @@ export const AGENT_OPTIONS: readonly AgentOptionDefinition[] = [
 		names: ["-h", "--herdr"],
 		role: "extension",
 		arity: "boolean",
+		choices: ["pane", "tab", "workspace"] satisfies HerdrScope[],
 		autocomplete: true,
-		description: "Open the side chat in a new herdr pane",
+		description: "Open the side chat in a new herdr pane, tab, or workspace",
+	},
+	{
+		semanticId: "tmux",
+		names: ["--tmux"],
+		role: "extension",
+		arity: "boolean",
+		autocomplete: true,
+		description: "Open the side chat in a new tmux pane",
 	},
 	{
 		semanticId: "provider",
@@ -371,7 +383,8 @@ export function scanAgentArguments(
 	const forwardedArgs: string[] = [];
 	let isolate = false;
 	let squash = false;
-	let herdr = false;
+	let herdrScope: HerdrScope | undefined;
+	let tmux = false;
 	let blocked: AgentSemanticToken | undefined;
 	let consumedOption = false;
 	let position = 0;
@@ -407,7 +420,15 @@ export function scanAgentArguments(
 		} else if (option.semanticId === "squash") {
 			squash = true;
 		} else if (option.semanticId === "herdr") {
-			herdr = true;
+			herdrScope = "pane";
+			const choice = readChoiceSpan(args, position, option);
+			if (choice !== undefined) {
+				herdrScope = choice.value as HerdrScope;
+				tokens.push({ semantic: "value", ...choice, option });
+				position = choice.end;
+			}
+		} else if (option.semanticId === "tmux") {
+			tmux = true;
 		} else if (option.arity === "value") {
 			forwardedArgs.push(option.forwardName ?? token);
 			const read = readValueSpan(args, position);
@@ -441,7 +462,8 @@ export function scanAgentArguments(
 	const scan: AgentArgumentScan = {
 		isolate,
 		squash,
-		herdr,
+		herdrScope,
+		tmux,
 		forwardedArgs,
 		tokens,
 		proseStart,
@@ -524,16 +546,19 @@ export function parseAgentCommand(args: string, command: AgentCommandName): Pars
 	}
 	if (!scan.prose.trim())
 		throw new Error(
-			`Usage: /${command} [pi options] [-m MODELNAME] [-i|--isolate] [-s|--squash] [-h|--herdr] "<task>"`,
+			`Usage: /${command} [pi options] [-m MODELNAME] [-i|--isolate] [-s|--squash] [-h|--herdr [pane|tab|workspace]] [--tmux] "<task>"`,
 		);
-	if (scan.herdr && scan.squash)
+	if (scan.herdrScope !== undefined && scan.tmux)
+		throw new Error(`/${command} -h and --tmux conflict: a side chat opens in one place.`);
+	const place = scan.tmux ? "tmux pane" : scan.herdrScope && (`herdr ${scan.herdrScope}` as const);
+	if (place !== undefined && scan.squash)
 		throw new Error(
-			`/${command} -h and -s conflict: a side chat in a herdr pane never squashes into this context.`,
+			`/${command} ${scan.tmux ? "--tmux" : "-h"} and -s conflict: a side chat in a ${place} never squashes into this context.`,
 		);
 	return {
 		isolate: scan.isolate,
 		squash: scan.squash,
-		herdr: scan.herdr,
+		place,
 		forwardedArgs: scan.forwardedArgs,
 		task: scan.task,
 		warnings: scan.warnings,
@@ -573,6 +598,7 @@ function analyzeArgumentCursor(
 	const usedSemanticIds = new Set<string>();
 	let position = 0;
 	let expectedValueOption: AgentOptionDefinition | undefined;
+	let pendingChoices: readonly string[] | undefined;
 	let provider: string | undefined;
 
 	for (;;) {
@@ -634,9 +660,14 @@ function analyzeArgumentCursor(
 		}
 
 		const token = args.slice(tokenStart, tokenEnd);
+		if (pendingChoices?.includes(token)) {
+			pendingChoices = undefined;
+			continue;
+		}
 		const option = OPTION_BY_NAME.get(token);
 		if (!option || option.role === "blocked") return undefined;
 		usedSemanticIds.add(option.semanticId);
+		pendingChoices = option.choices;
 		if (option.arity === "value") expectedValueOption = option;
 	}
 }
@@ -713,6 +744,18 @@ function readValueSpan(
 	return { start, end, value: args.slice(start, end) };
 }
 
+/** The exact, unquoted choice token right after a boolean option with choices, or undefined. */
+function readChoiceSpan(
+	args: string,
+	position: number,
+	option: AgentOptionDefinition,
+): { start: number; end: number; value: string } | undefined {
+	const match = /^\s*(\S+)/.exec(args.slice(position));
+	if (!match || !option.choices?.includes(match[1]!)) return undefined;
+	const start = position + match[0].length - match[1]!.length;
+	return { start, end: position + match[0].length, value: match[1]! };
+}
+
 function buildQuoteMask(text: string): boolean[] {
 	const mask = new Array<boolean>(text.length).fill(false);
 	let index = 0;
@@ -751,7 +794,11 @@ function collectProseSemantics(
 		if (quoteMask[token.index]) continue;
 		const option = OPTION_BY_NAME.get(token.text);
 		if (!option) continue;
-		const valueToken = option.arity === "value" ? tokens[index + 1] : undefined;
+		const nextToken = tokens[index + 1];
+		const valueToken =
+			option.arity === "value" || (nextToken !== undefined && option.choices?.includes(nextToken.text))
+				? nextToken
+				: undefined;
 		const optionWithValue =
 			valueToken === undefined ? token.text : `${token.text} ${valueToken.text}`;
 		warnings.push(

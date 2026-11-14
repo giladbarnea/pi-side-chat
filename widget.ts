@@ -52,7 +52,7 @@ type UserAgentWidgetEntry =
 type CachedActivityPreview = {
 	source: AgentMessage | string | undefined;
 	status: RunningAgent["status"] | boolean;
-	herdrPane: string | undefined;
+	paneLabel: string | undefined;
 	error: string | undefined;
 	width: number;
 	theme: Theme;
@@ -115,14 +115,14 @@ export class UserAgentWidget {
 		});
 	}
 
-	/** The row for an agent dispatched straight into a herdr pane: nothing ran here, so nothing squashes. */
-	addHerdrDispatch(agent: RunningAgent, paneId: string): void {
-		this.snapshot(agent, { ok: true, herdrPane: paneId });
+	/** The row for an agent dispatched straight into a herdr or tmux pane: nothing ran here, so nothing squashes. */
+	addPaneDispatch(agent: RunningAgent, paneLabel: string): void {
+		this.snapshot(agent, { ok: true, paneLabel });
 	}
 
 	private snapshot(
 		agent: RunningAgent,
-		outcome: { ok: boolean; pendingSquashMessage?: AgentResultMessage; herdrPane?: string },
+		outcome: { ok: boolean; pendingSquashMessage?: AgentResultMessage; paneLabel?: string },
 	): CompletedAgent {
 		const completed: CompletedAgent = {
 			id: agent.id,
@@ -142,7 +142,7 @@ export class UserAgentWidget {
 			toolUses: agent.toolUses,
 			turnCount: agent.turnCount,
 			contextPercent: agent.session?.getContextUsage()?.percent ?? undefined,
-			herdrPane: outcome.herdrPane,
+			paneLabel: outcome.paneLabel,
 		};
 		this.completedAgents.push(completed);
 		this.update();
@@ -381,7 +381,7 @@ export class UserAgentWidget {
 			const pane = await this.herdrDelivery.split(target);
 			const snapshot = await this.releaseForHerdr(agentId);
 			await pane.start();
-			snapshot.herdrPane = pane.paneId;
+			snapshot.paneLabel = herdrPaneLabel(pane.paneId);
 			logSteering(agentId, "opened-in-herdr", { paneId: pane.paneId });
 		} finally {
 			this.herdrPending = undefined;
@@ -395,7 +395,7 @@ export class UserAgentWidget {
 		if (!this.herdrDelivery.available()) return "Pi is not running inside a herdr pane";
 		if (this.herdrPending === agentId) return "a herdr pane is already opening";
 		const completed = this.completedAgents.find((agent) => agent.id === agentId);
-		if (completed?.herdrPane) return `already in ${herdrPaneLabel(completed.herdrPane)}`;
+		if (completed?.paneLabel) return `already in ${completed.paneLabel}`;
 		if (!completed && !this.idleAgent(agentId)) return "the side chat is mid-turn (Ctrl+x interrupts it)";
 		return undefined;
 	}
@@ -774,14 +774,14 @@ export class UserAgentWidget {
 	): string[] {
 		const running = isRunningAgent(agent);
 		const inFlight = isLiveAgent(agent);
-		const herdrPane = running ? undefined : agent.herdrPane;
+		const paneLabel = running ? undefined : agent.paneLabel;
 		const ok = running ? agent.error === undefined : agent.ok;
 		const status = inFlight
 			? "running"
 			: running
 				? "idle"
-				: herdrPane
-					? herdrPaneLabel(herdrPane)
+				: paneLabel
+					? paneLabel
 					: ok
 						? "completed"
 						: "failed";
@@ -790,7 +790,7 @@ export class UserAgentWidget {
 			? theme.fg("accent", SPINNER[this.frame % SPINNER.length])
 			: running
 				? theme.fg("muted", "◉")
-				: herdrPane
+				: paneLabel
 					? theme.fg("muted", "⧉")
 					: ok
 						? theme.fg("success", "✓")
@@ -801,8 +801,8 @@ export class UserAgentWidget {
 		if (mainContext) parts.push(mainContext);
 		if (agent.turnCount > 0) parts.push(formatTurns(agent.turnCount));
 		if (agent.toolUses > 0) parts.push(formatToolUses(agent.toolUses));
-		// An agent born in a herdr pane never ran here; a duration would be noise.
-		if (!herdrPane || agent.turnCount > 0)
+		// An agent born in a pane never ran here; a duration would be noise.
+		if (!paneLabel || agent.turnCount > 0)
 			parts.push(
 				formatMs(
 					running ? (agent.completedAt ?? Date.now()) - agent.turnStartedAt : agent.durationMs,
@@ -834,11 +834,11 @@ export class UserAgentWidget {
 		const running = isRunningAgent(agent);
 		const source = isLiveAgent(agent) ? agent.latestFinalizedMessage : agent.responseText;
 		const status = running ? agent.status : agent.ok;
-		const herdrPane = running ? undefined : agent.herdrPane;
+		const paneLabel = running ? undefined : agent.paneLabel;
 		const cached = this.activityPreviews.get(agent);
 		if (
 			cached && cached.source === source && cached.status === status &&
-			cached.herdrPane === herdrPane &&
+			cached.paneLabel === paneLabel &&
 			cached.error === agent.error && cached.width === width && cached.theme === theme
 		) return cached.text;
 		const description = running
@@ -846,14 +846,14 @@ export class UserAgentWidget {
 			: {
 					text: !agent.ok
 						? `Error: ${agent.error ?? "unknown"}`
-						: agent.responseText || (herdrPane ? `runs in ${herdrPaneLabel(herdrPane)}` : ""),
+						: agent.responseText || (paneLabel ? `runs in ${paneLabel}` : ""),
 					truncation: "tail" as const,
 				};
 		const text = renderActivity(description, width, theme);
 		this.activityPreviews.set(agent, {
 			source,
 			status,
-			herdrPane,
+			paneLabel,
 			error: agent.error,
 			width,
 			theme,
