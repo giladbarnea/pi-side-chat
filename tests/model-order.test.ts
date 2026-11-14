@@ -127,6 +127,19 @@ describe("#22: among otherwise equal matches, the higher version comes first", (
 		]);
 	});
 
+	test("rule 1: dotted and dashed multi-part versions stay in separate sets", () => {
+		expect(order("opus", [{ provider: "x", id: "opus-5.0" }, { provider: "x", id: "opus-5-5" }])).toEqual([
+			"x/opus-5.0",
+			"x/opus-5-5",
+		]);
+		expect(order("opus", [
+			{ provider: "x", id: "opus-4.2" },
+			{ provider: "x", id: "opus-4-2" },
+			{ provider: "x", id: "opus-4.5" },
+			{ provider: "x", id: "opus-4-5" },
+		])).toEqual(["x/opus-4.5", "x/opus-4-5", "x/opus-4.2", "x/opus-4-2"]);
+	});
+
 	test("rule 2: opus-5 is higher than opus-4-5 and opus-4.5", () => {
 		expect(order("opus", [{ provider: "x", id: "opus-4-5" }, { provider: "x", id: "opus-5" }])).toEqual([
 			"x/opus-5",
@@ -183,6 +196,49 @@ describe("#22: among otherwise equal matches, the higher version comes first", (
 				{ provider: "baseten", id: "deepseek-ai/DeepSeek-V4-Flash-1731" },
 			]),
 		).toEqual(["baseten/deepseek-ai/DeepSeek-V4-Flash-1731", "baseten/deepseek-ai/DeepSeek-V4-Flash-731"]);
+	});
+
+	test("real case 3: Palmyra X5 leads X4 with the same v1:0 suffix", () => {
+		expect(order("palmyra", [
+			{ provider: "amazon-bedrock", id: "writer.palmyra-x4-v1:0", name: "Palmyra X4" },
+			{ provider: "amazon-bedrock", id: "writer.palmyra-x5-v1:0", name: "Palmyra X5" },
+		])).toEqual([
+			"amazon-bedrock/writer.palmyra-x5-v1:0",
+			"amazon-bedrock/writer.palmyra-x4-v1:0",
+		]);
+	});
+
+	test("real case 3: Qwen 3.6 leads 3.5 with the same size suffix, including the real display names", () => {
+		expect(order("qwen", [
+			{ provider: "openrouter", id: "qwen/qwen3.5-35b-a3b", name: "Qwen: Qwen3.5-35B-A3B" },
+			{ provider: "openrouter", id: "qwen/qwen3.6-35b-a3b", name: "Qwen: Qwen3.6 35B A3B" },
+		])).toEqual(["openrouter/qwen/qwen3.6-35b-a3b", "openrouter/qwen/qwen3.5-35b-a3b"]);
+		expect(order("qwen", [
+			{ provider: "huggingface", id: "Qwen/Qwen3.5-35B-A3B", name: "Qwen3.5 35B-A3B" },
+			{ provider: "huggingface", id: "Qwen/Qwen3.6-35B-A3B", name: "Qwen3.6 35B-A3B" },
+		])).toEqual(["huggingface/Qwen/Qwen3.6-35B-A3B", "huggingface/Qwen/Qwen3.5-35B-A3B"]);
+	});
+
+	test("pitfall case 3: the same date suffix does not prevent comparing the model version", () => {
+		expect(order("deepseek", [
+			{ provider: "baseten", id: "deepseek-ai/DeepSeek-V4-Flash-0731" },
+			{ provider: "baseten", id: "deepseek-ai/DeepSeek-V4.1-Flash-0731" },
+		])).toEqual([
+			"baseten/deepseek-ai/DeepSeek-V4.1-Flash-0731",
+			"baseten/deepseek-ai/DeepSeek-V4-Flash-0731",
+		]);
+	});
+
+	test("a higher version cannot displace a better name or alias match within either scope group", () => {
+		const models = [
+			{ provider: "x", id: "opus-4", name: "best" },
+			{ provider: "x", id: "opus-5", name: "big elephant slowly talking" },
+		];
+		for (const catalog of [models, [...models].reverse()]) {
+			for (const scope of [[], models]) {
+				expect(order("best", catalog, scope)).toEqual(["x/opus-4", "x/opus-5"]);
+			}
+		}
 	});
 
 	test("a typed digit takes part in the match, so the fuzzy order stands", () => {

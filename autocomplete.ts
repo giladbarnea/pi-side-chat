@@ -13,6 +13,7 @@ import {
 	decodeKittyPrintable,
 	type EditorComponent,
 	fuzzyFilter,
+	fuzzyMatch,
 } from "@earendil-works/pi-tui";
 import {
 	AGENT_OPTIONS,
@@ -282,7 +283,7 @@ export function getModelItems(
 		if (fragment.trim() === "") return group;
 		const matches = fuzzyFilter(group, fragment, (model) => `${modelReference(model)} ${model.name ?? ""}`);
 		// A typed digit matches against the version itself, so versions are no longer otherwise equal.
-		return /\d/.test(fragment) ? matches : higherVersionsFirst(matches);
+		return /\d/.test(fragment) ? matches : higherVersionsFirst(matches, fragment);
 	};
 	return [
 		...rank(providerModels.filter((model) => scopedReferences.has(modelReference(model)))),
@@ -302,47 +303,60 @@ function modelReference(model: CompletionModel): string {
 }
 
 /** A version number: digit groups joined by dots or dashes, such as 5, 4-5, 6.1 or 0731. */
-const VERSION_NUMBER = /\d+(?:[.-]\d+)*/g;
+const VERSION_NUMBER = /\d+(?:\.\d+)+|\d+(?:-\d+)*/g;
 
 /**
- * Reorder models whose references are equal, case-insensitively, except for one version number:
- * the higher version takes the earliest of their places. Every other model keeps its place.
+ * Reorder otherwise-equal version matches with equal fuzzy relevance after normalizing numeric lengths.
+ * Dotted and dashed multi-part versions stay separate, and every other model keeps its place.
  *
- * @example higherVersionsFirst([{ provider: "x", id: "opus-4-5" }, { provider: "y", id: "z" }, { provider: "x", id: "opus-5" }]).map((model) => model.id) // ["opus-5", "z", "opus-4-5"]
+ * @example higherVersionsFirst([{ provider: "x", id: "opus-4-5" }, { provider: "y", id: "z" }, { provider: "x", id: "opus-5" }], "opus").map((model) => model.id) // ["opus-5", "z", "opus-4-5"]
  */
-function higherVersionsFirst(models: readonly CompletionModel[]): CompletionModel[] {
+function higherVersionsFirst(models: readonly CompletionModel[], fragment: string): CompletionModel[] {
+	const queryTokens = fragment.trim().split(/[\s/]+/).filter(Boolean);
 	const ordered = [...models];
 	const versionCounts = ordered.map((model) => modelReference(model).match(VERSION_NUMBER)?.length ?? 0);
 	for (let versionIndex = 0; versionIndex < Math.max(0, ...versionCounts); versionIndex += 1) {
-		const placesBySiblings = new Map<string, number[]>();
-		ordered.forEach((model, place) => {
-			const siblings = versionSiblingsKey(model, versionIndex);
-			if (siblings !== undefined) placesBySiblings.set(siblings, [...(placesBySiblings.get(siblings) ?? []), place]);
-		});
-		for (const places of placesBySiblings.values()) {
-			const byVersion = places
-				.map((place) => ordered[place]!)
-				.sort((a, b) => compareVersions(versionNumber(b, versionIndex), versionNumber(a, versionIndex)));
-			places.forEach((place, rank) => {
-				ordered[place] = byVersion[rank]!;
+		for (const separator of [".", "-"] as const) {
+			const placesBySiblings = new Map<string, number[]>();
+			ordered.forEach((model, place) => {
+				const siblings = versionSiblingsKey(model, versionIndex, separator, queryTokens);
+				if (siblings !== undefined) placesBySiblings.set(siblings, [...(placesBySiblings.get(siblings) ?? []), place]);
 			});
+			for (const places of placesBySiblings.values()) {
+				const byVersion = places
+					.map((place) => ordered[place]!)
+					.sort((a, b) => compareVersions(versionNumber(b, versionIndex), versionNumber(a, versionIndex)));
+				places.forEach((place, rank) => {
+					ordered[place] = byVersion[rank]!;
+				});
+			}
 		}
 	}
 	return ordered;
 }
 
-/** The lowercase reference with its version number at versionIndex blanked; undefined when it has no such number. */
-function versionSiblingsKey(model: CompletionModel, versionIndex: number): string | undefined {
+/** Group references differing in one version only when Pi scores their normalized search text equally. */
+function versionSiblingsKey(
+	model: CompletionModel,
+	versionIndex: number,
+	separator: "." | "-",
+	queryTokens: readonly string[],
+): string | undefined {
+	const version = modelReference(model).match(VERSION_NUMBER)?.[versionIndex];
+	const otherSeparator = separator === "." ? "-" : ".";
+	if (version === undefined || version.includes(otherSeparator)) return undefined;
 	let index = -1;
-	let found = false;
 	const key = modelReference(model)
 		.toLowerCase()
 		.replace(VERSION_NUMBER, (version) => {
 			index += 1;
-			found ||= index === versionIndex;
 			return index === versionIndex ? "#" : version;
 		});
-	return found ? key : undefined;
+	const name = model.name?.toLowerCase().replace(VERSION_NUMBER, "#") ?? "";
+	const matches = queryTokens.map((token) => fuzzyMatch(token, `${key} ${name}`));
+	if (matches.some((match) => !match.matches)) return undefined;
+	const score = matches.reduce((total, match) => total + match.score, 0);
+	return JSON.stringify([key, score]);
 }
 
 function versionNumber(model: CompletionModel, versionIndex: number): number[] {
