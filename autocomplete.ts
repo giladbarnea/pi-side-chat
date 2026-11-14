@@ -264,20 +264,30 @@ export function registerAgentAutocomplete(pi: ExtensionAPI): void {
 	});
 }
 
-function getModelItems(
+/**
+ * The -m menu: scoped models first, then the rest. A typed fragment filters and ranks each group
+ * by fuzzy match, and among models that differ in one version number, the higher version leads.
+ */
+export function getModelItems(
 	fragment: string,
 	models: readonly CompletionModel[],
 	scopedModels: readonly CompletionModel[],
 	provider?: string,
 ): AutocompleteItem[] {
+	const scopedReferences = new Set(scopedModels.map(modelReference));
 	const providerModels = models.filter(
 		(model) => provider === undefined || model.provider === provider,
 	);
-	return fuzzyFilter(
-		scopedModelsFirst(providerModels, scopedModels),
-		fragment,
-		(model) => `${model.provider}/${model.id} ${model.name ?? ""}`,
-	).map((model) => {
+	const rank = (group: CompletionModel[]): CompletionModel[] => {
+		if (fragment.trim() === "") return group;
+		const matches = fuzzyFilter(group, fragment, (model) => `${modelReference(model)} ${model.name ?? ""}`);
+		// A typed digit matches against the version itself, so versions are no longer otherwise equal.
+		return /\d/.test(fragment) ? matches : higherVersionsFirst(matches);
+	};
+	return [
+		...rank(providerModels.filter((model) => scopedReferences.has(modelReference(model)))),
+		...rank(providerModels.filter((model) => !scopedReferences.has(modelReference(model)))),
+	].map((model) => {
 		const reference = `${model.provider}/${model.id}`;
 		return {
 			value: reference,
@@ -287,16 +297,65 @@ function getModelItems(
 	});
 }
 
-/** @example scopedModelsFirst([{ provider: "all", id: "first" }, { provider: "scope", id: "second" }], [{ provider: "scope", id: "second" }])[0]?.provider // "scope" */
-function scopedModelsFirst(
-	models: readonly CompletionModel[],
-	scopedModels: readonly CompletionModel[],
-): CompletionModel[] {
-	const scopedReferences = new Set(scopedModels.map((model) => `${model.provider}/${model.id}`));
-	return [
-		...models.filter((model) => scopedReferences.has(`${model.provider}/${model.id}`)),
-		...models.filter((model) => !scopedReferences.has(`${model.provider}/${model.id}`)),
-	];
+function modelReference(model: CompletionModel): string {
+	return `${model.provider}/${model.id}`;
+}
+
+/** A version number: digit groups joined by dots or dashes, such as 5, 4-5, 6.1 or 0731. */
+const VERSION_NUMBER = /\d+(?:[.-]\d+)*/g;
+
+/**
+ * Reorder models whose references are equal, case-insensitively, except for one version number:
+ * the higher version takes the earliest of their places. Every other model keeps its place.
+ *
+ * @example higherVersionsFirst([{ provider: "x", id: "opus-4-5" }, { provider: "y", id: "z" }, { provider: "x", id: "opus-5" }]).map((model) => model.id) // ["opus-5", "z", "opus-4-5"]
+ */
+function higherVersionsFirst(models: readonly CompletionModel[]): CompletionModel[] {
+	const ordered = [...models];
+	const versionCounts = ordered.map((model) => modelReference(model).match(VERSION_NUMBER)?.length ?? 0);
+	for (let versionIndex = 0; versionIndex < Math.max(0, ...versionCounts); versionIndex += 1) {
+		const placesBySiblings = new Map<string, number[]>();
+		ordered.forEach((model, place) => {
+			const siblings = versionSiblingsKey(model, versionIndex);
+			if (siblings !== undefined) placesBySiblings.set(siblings, [...(placesBySiblings.get(siblings) ?? []), place]);
+		});
+		for (const places of placesBySiblings.values()) {
+			const byVersion = places
+				.map((place) => ordered[place]!)
+				.sort((a, b) => compareVersions(versionNumber(b, versionIndex), versionNumber(a, versionIndex)));
+			places.forEach((place, rank) => {
+				ordered[place] = byVersion[rank]!;
+			});
+		}
+	}
+	return ordered;
+}
+
+/** The lowercase reference with its version number at versionIndex blanked; undefined when it has no such number. */
+function versionSiblingsKey(model: CompletionModel, versionIndex: number): string | undefined {
+	let index = -1;
+	let found = false;
+	const key = modelReference(model)
+		.toLowerCase()
+		.replace(VERSION_NUMBER, (version) => {
+			index += 1;
+			found ||= index === versionIndex;
+			return index === versionIndex ? "#" : version;
+		});
+	return found ? key : undefined;
+}
+
+function versionNumber(model: CompletionModel, versionIndex: number): number[] {
+	return modelReference(model).match(VERSION_NUMBER)![versionIndex]!.split(/[.-]/).map(Number);
+}
+
+/** @example compareVersions([5], [4, 5]) // 1 */
+function compareVersions(a: readonly number[], b: readonly number[]): number {
+	for (let part = 0; part < Math.max(a.length, b.length); part += 1) {
+		const difference = (a[part] ?? -1) - (b[part] ?? -1);
+		if (difference !== 0) return Math.sign(difference);
+	}
+	return 0;
 }
 
 function getProviderItems(

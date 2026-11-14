@@ -380,7 +380,7 @@ describe("agent command editor autocomplete", () => {
 		}
 	});
 
-	test("a stronger fuzzy model match outranks scoped menu priority", async () => {
+	test("scoped models stay ahead of a stronger unscoped fuzzy match while typing (#21)", async () => {
 		const cwd = await mkdtemp(join(tmpdir(), "pi-user-agents-fuzzy-models-"));
 		try {
 			await mkdir(join(cwd, ".pi"));
@@ -402,8 +402,8 @@ describe("agent command editor autocomplete", () => {
 			);
 			const rendered = harness.render();
 			assert.ok(
-				rendered.indexOf("gpt/other") < rendered.indexOf("long-scoped/gpt"),
-				`Expected fuzzy relevance to determine menu order after the user types a query.\nRendered editor:\n${rendered}`,
+				rendered.indexOf("long-scoped/gpt") < rendered.indexOf("gpt/other"),
+				`Expected the scoped model to keep its lead after the user types a query.\nRendered editor:\n${rendered}`,
 			);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
