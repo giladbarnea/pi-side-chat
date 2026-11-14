@@ -362,6 +362,8 @@ describe("UserAgentWidget steering", () => {
 
 type StreamingViewer = {
 	viewer: Component;
+	widget: UserAgentWidget;
+	terminalInput: (data: string) => unknown;
 	runningAgent: RunningAgent;
 	steeredMessages: string[];
 	squashedResults: AgentResultMessage[];
@@ -451,7 +453,7 @@ function openStreamingViewer(): StreamingViewer {
 	terminalInput("\x1b[B");
 	terminalInput("\r");
 	if (!viewer) throw new Error("Agent viewer did not open");
-	return { viewer, runningAgent, steeredMessages, squashedResults };
+	return { viewer, widget, terminalInput, runningAgent, steeredMessages, squashedResults };
 }
 
 describe("UserAgentWidget completed overlay", () => {
@@ -1677,34 +1679,49 @@ describe("mouse wheel over the overlay", () => {
 		// TuiAltScreen keeps its viewport and selection state private; the test reads them through `any`.
 		const tui = new TuiAltScreen(terminal as never, false, undefined, {}) as any;
 		tui.addChild(new Text(Array.from({ length: 200 }, (_, index) => `transcript line ${index}`).join("\n"), 0, 0));
+		const { viewer, widget, terminalInput } = openStreamingViewer();
+		const overlayOptions = { anchor: "center", width: "90%", maxHeight: "85%" } as const;
+		const outsideWheel = sgr(wheelUp, 2, 1);
 		tui.start();
-		await settle();
-		const { viewer } = openStreamingViewer();
-		tui.showOverlay(viewer, { anchor: "center", width: "90%", maxHeight: "85%" });
-		await settle();
-		const top = tui.viewportTop;
-		expect(viewer.render(108).join("\n"), "The viewer starts at its tail").toContain("message 11");
+		try {
+			await settle();
+			const control = tui.showOverlay(new Text("control\n".repeat(16), 0, 0), overlayOptions);
+			await settle();
+			const controlTop = tui.viewportTop;
+			terminal.onInput(outsideWheel);
+			await settle();
+			const outsideScroll = tui.viewportTop - controlTop;
+			control.hide();
+			tui.scrollToBottom();
+			tui.showOverlay(viewer, overlayOptions);
+			await settle();
+			const top = tui.viewportTop;
+			expect(viewer.render(108).join("\n"), "The viewer starts at its tail").toContain("message 11");
 
-		for (let notch = 0; notch < 6; notch += 1) terminal.onInput(sgr(wheelUp, 60, 10));
-		await settle();
-		expect(tui.viewportTop, "The hidden transcript must not move under the overlay").toBe(top);
-		expect(viewer.render(108).join("\n"), "Wheel up scrolls the viewer away from its tail").not.toContain("message 11");
+			for (let notch = 0; notch < 6; notch += 1) terminal.onInput(sgr(wheelUp, 60, 10));
+			await settle();
+			expect(tui.viewportTop, "The hidden transcript must not move under the overlay").toBe(top);
+			expect(viewer.render(108).join("\n"), "Wheel up scrolls the viewer away from its tail").not.toContain("message 11");
 
-		for (let notch = 0; notch < 20; notch += 1) terminal.onInput(sgr(wheelDown, 60, 10));
-		await settle();
-		expect(viewer.render(108).join("\n"), "Wheel down scrolls the viewer back to its tail").toContain("message 11");
-		expect(tui.viewportTop).toBe(top);
+			for (let notch = 0; notch < 20; notch += 1) terminal.onInput(sgr(wheelDown, 60, 10));
+			await settle();
+			expect(viewer.render(108).join("\n"), "Wheel down scrolls the viewer back to its tail").toContain("message 11");
+			expect(tui.viewportTop).toBe(top);
 
-		terminal.onInput(sgr(wheelUp, 2, 1));
-		await settle();
-		expect(tui.viewportTop, "Wheel outside the overlay still scrolls the transcript").toBe(top - 1);
+			expect(terminalInput(outsideWheel), "Outside wheel input must reach Pi unchanged").toBeUndefined();
+			terminal.onInput(outsideWheel);
+			await settle();
+			expect(tui.viewportTop, "Outside wheel behavior must match Pi's own overlay").toBe(top + outsideScroll);
 
-		terminal.onInput(sgr(0, 20, 8));
-		terminal.onInput(sgr(32, 40, 9));
-		terminal.onInput(sgr(0, 40, 9, true));
-		await settle();
-		expect(tui.selectionAnchor, "Press and drag over the overlay still start Pi's own selection").toBeDefined();
-		expect(tui.selectionFocus).toBeDefined();
-		tui.stop();
+			terminal.onInput(sgr(0, 20, 8));
+			terminal.onInput(sgr(32, 40, 9));
+			terminal.onInput(sgr(0, 40, 9, true));
+			await settle();
+			expect(tui.selectionAnchor, "Press and drag over the overlay still start Pi's own selection").toBeDefined();
+			expect(tui.selectionFocus).toBeDefined();
+		} finally {
+			widget.dispose();
+			tui.stop();
+		}
 	});
 });
