@@ -127,6 +127,28 @@ describe("editor semantic coloring", () => {
 		assert.equal(harness.editor.getText(), "/side --thinking high fix it");
 	});
 
+	test("Herdr places stay optional and explicit valid places keep their value color (#25)", async () => {
+		for (const option of ["-h", "--herdr"]) {
+			for (const place of ["", "pane", "tab", "workspace"]) {
+				const usedColors = new Set<string>();
+				const harness = await createEditorHarness(undefined, [], [], [], {
+					themeFg: createMarkingThemeFg(usedColors),
+				});
+				harness.type(`/side ${option}${place ? ` ${place}` : ""} audit`);
+				const rendered = harness.renderRaw();
+				assert.ok(rendered.includes(colored("syntaxType", option)), rendered);
+				assert.equal(usedColors.has("error"), false, `Optional ${option} must not require a place: ${rendered}`);
+				if (place) assert.ok(rendered.includes(`${colored("syntaxString", place)} audit`), rendered);
+			}
+			const bare = await createEditorHarness(undefined, [], [], [], {
+				themeFg: createMarkingThemeFg(new Set()),
+			});
+			bare.type(`/side ${option}`);
+			assert.ok(bare.renderRaw().includes(colored("syntaxType", option)));
+			assert.ok(!bare.renderRaw().includes(SGR_OPEN.error), "A bare Herdr option must not use the error color");
+		}
+	});
+
 	test("paints options and values typed after the prose flip as errors", async () => {
 		const harness = await createEditorHarness(undefined, [], [], [], {
 			themeFg: createMarkingThemeFg(new Set()),

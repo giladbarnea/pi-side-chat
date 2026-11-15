@@ -1,6 +1,6 @@
 import type { AgentCommandName, HerdrScope, ParsedAgentCommand } from "./shared.js";
 
-export type ValueCompletionDomain = "model" | "path" | "provider" | "thinking" | "tool";
+export type ValueCompletionDomain = "choice" | "model" | "path" | "provider" | "thinking" | "tool";
 /** `inert`: forwarded to a background run, where it has no effect, and dropped from a herdr pane's Pi. */
 export type AgentOptionRole = "extension" | "forwarded" | "inert" | "blocked";
 
@@ -133,6 +133,7 @@ export const AGENT_OPTIONS: readonly AgentOptionDefinition[] = [
 		role: "extension",
 		arity: "boolean",
 		choices: ["pane", "tab", "workspace"] satisfies HerdrScope[],
+		completionDomain: "choice",
 		autocomplete: true,
 		description: "Open the side chat in a new herdr pane, tab, or workspace",
 	},
@@ -598,19 +599,37 @@ function analyzeArgumentCursor(
 	const usedSemanticIds = new Set<string>();
 	let position = 0;
 	let expectedValueOption: AgentOptionDefinition | undefined;
-	let pendingChoices: readonly string[] | undefined;
+	let pendingChoiceOption: AgentOptionDefinition | undefined;
 	let provider: string | undefined;
 
 	for (;;) {
 		while (position < args.length && /\s/.test(args[position] ?? "")) position += 1;
+		const choiceEnd = readCursorValue(args, position).end;
+		const choiceToken = args.slice(position, choiceEnd);
+		if (
+			pendingChoiceOption?.choices?.some((choice) => choice.startsWith(choiceToken)) &&
+			position <= cursor && cursor <= choiceEnd
+		) {
+			return valueExpectation(
+				command,
+				args.slice(position, cursor),
+				position,
+				choiceEnd,
+				pendingChoiceOption,
+				provider,
+				false,
+				usedSemanticIds,
+			);
+		}
 		if (position >= cursor) {
-			if (expectedValueOption) {
+			const valueOption = expectedValueOption ?? pendingChoiceOption;
+			if (valueOption) {
 				return valueExpectation(
 					command,
 					"",
 					cursor,
 					cursor,
-					expectedValueOption,
+					valueOption,
 					provider,
 					false,
 					usedSemanticIds,
@@ -660,14 +679,13 @@ function analyzeArgumentCursor(
 		}
 
 		const token = args.slice(tokenStart, tokenEnd);
-		if (pendingChoices?.includes(token)) {
-			pendingChoices = undefined;
-			continue;
-		}
+		const choiceConsumed = pendingChoiceOption?.choices?.includes(token);
+		pendingChoiceOption = undefined;
+		if (choiceConsumed) continue;
 		const option = OPTION_BY_NAME.get(token);
 		if (!option || option.role === "blocked") return undefined;
 		usedSemanticIds.add(option.semanticId);
-		pendingChoices = option.choices;
+		pendingChoiceOption = option.choices ? option : undefined;
 		if (option.arity === "value") expectedValueOption = option;
 	}
 }

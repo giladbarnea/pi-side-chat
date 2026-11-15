@@ -112,6 +112,27 @@ describe("-h place and --tmux in the editor machinery", () => {
 		);
 	});
 
+	test("both Herdr aliases expose only their optional place slot and keep the parser contract (#25)", () => {
+		for (const option of ["-h", "--herdr"]) {
+			for (const fragment of ["", "t", "tab", "wo", "workspace"]) {
+				const line = `/side ${option} ${fragment}`;
+				const expectation = analyzeAgentEditorInput(line, line.length);
+				assert.equal(expectation?.kind, "value", `Expected a place slot at ${line}`);
+				assert.equal(expectation?.fragment, fragment);
+			}
+			for (const task of ["audit it", "tabs are wrong", "Tab order", '"tab order"', "\\tab order"]) {
+				const parsed = parseAgentCommand(`${option} ${task}`, "side");
+				assert.equal(parsed.place, "herdr pane", `Expected pane default for ${option} ${task}`);
+				assert.equal(parsed.task, task);
+				const line = `/side ${option} ${task} -`;
+				assert.equal(analyzeAgentEditorInput(line, line.length), undefined, `Prose cannot reopen completion: ${line}`);
+			}
+			const nextOption = `/side ${option} -i -`;
+			assert.equal(analyzeAgentEditorInput(nextOption, nextOption.length)?.kind, "option");
+			assert.equal(parseAgentCommand(`${option} -i audit`, "side").place, "herdr pane");
+		}
+	});
+
 	test("--tmux is an option token, and -t still reads a tools value", () => {
 		const line = "/side --tmux -t read audit it";
 		assert.deepEqual(

@@ -48,7 +48,6 @@ import {
 	errorMessage,
 	formatModel,
 	formatModelLabel,
-	herdrPaneLabel,
 	logSteering,
 	REBASED_ENTRY_TYPE,
 } from "./shared.js";
@@ -208,7 +207,7 @@ function herdrLauncher(scope: HerdrScope): PlaceLauncher {
 		requirement: "inside a herdr pane",
 		available: insideHerdr,
 		open: async (cwd, agentName, piArgs) =>
-			herdrPaneLabel(await openPiInHerdr(scope, cwd, agentName, piArgs)),
+			`herdr ${scope} ${await openPiInHerdr(scope, cwd, agentName, piArgs)}`,
 	};
 }
 

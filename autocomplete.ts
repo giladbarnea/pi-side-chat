@@ -55,7 +55,9 @@ export function getOptionItems(expectation: OptionCursorExpectation): Autocomple
 			.filter((name) => name.startsWith(expectation.fragment))
 			.map((name) => ({
 				value: name,
-				label: option.arity === "value" ? `${name} <${option.placeholder}>` : name,
+				label: option.choices
+					? `${name} [${option.choices.join("|")}]`
+					: option.arity === "value" ? `${name} <${option.placeholder}>` : name,
 				description: option.description,
 			}));
 	});
@@ -79,6 +81,12 @@ export function createAgentAutocompleteProvider(
 			const expectation = analyzeAgentEditorInput(lines[0] ?? "", cursorCol);
 			if (expectation?.kind === "option") {
 				const items = getOptionItems(expectation);
+				return items.length === 0 ? null : { items, prefix: expectation.fragment };
+			}
+			if (expectation?.kind === "value" && expectation.option.choices) {
+				const items = expectation.option.choices
+					.filter((choice) => choice.startsWith(expectation.fragment))
+					.map((choice) => ({ value: choice, label: choice }));
 				return items.length === 0 ? null : { items, prefix: expectation.fragment };
 			}
 			if (expectation?.kind === "value" && expectation.option.completionDomain === "thinking") {
@@ -138,6 +146,14 @@ export function createAgentAutocompleteProvider(
 						item.value,
 					);
 				}
+				return applyCompletionEdit(
+					lines,
+					expectation.replacementStart,
+					expectation.replacementEnd,
+					item.value,
+				);
+			}
+			if (expectation?.kind === "value" && expectation.option.choices?.includes(item.value)) {
 				return applyCompletionEdit(
 					lines,
 					expectation.replacementStart,

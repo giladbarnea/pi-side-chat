@@ -1,3 +1,7 @@
+---
+last_updated: 2026-11-15T18-43
+---
+
 # Internals
 
 Design notes for contributors. User-facing behavior is documented in [README.md](README.md); the command grammar is specified in [PARSER_SPEC.md](PARSER_SPEC.md).
@@ -83,7 +87,7 @@ The attached agent parks idle first (`runAttachedTurns` waits for an instruction
 
 ## Herdr and tmux
 
-`h` and `-h` hand a child session to a Pi running in a new [herdr](https://herdr.dev) pane. Both go through `openPiInHerdr` (`herdr.ts`), a thin wrapper over the `herdr` CLI: `pane layout --current` picks the split direction (a wide caller pane splits right, a narrow or tall one down), `pane split --current --cwd <cwd> --no-focus` creates the pane without taking the user's focus, and `agent start <name> --kind pi --pane <id> -- <pi args>` starts pi there and returns once it is ready for input. For `-h tab`, `tab create --workspace $HERDR_WORKSPACE_ID --cwd <cwd> --no-focus` replaces the split, and for `-h workspace`, `workspace create --cwd <cwd> --no-focus`; both return the new root pane, where the same `agent start` runs. The row label stays the pane: `herdr pane <root pane id>`. The agent name is `side-` plus the first 13 characters of the child's session id, which hold a v7 id's complete millisecond timestamp, so names stay unique among live agents. Every command runs with the caller's environment, so `--current` resolves the pane this Pi lives in; both actions are available only under `HERDR_ENV=1`, and the widget hint hides otherwise.
+`h` and `-h` hand a child session to a Pi running in a new [herdr](https://herdr.dev) pane. Both go through `openPiInHerdr` (`herdr.ts`), a thin wrapper over the `herdr` CLI: `pane layout --current` picks the split direction (a wide caller pane splits right, a narrow or tall one down), `pane split --current --cwd <cwd> --no-focus` creates the pane without taking the user's focus, and `agent start <name> --kind pi --pane <id> -- <pi args>` starts pi there and returns once it is ready for input. For `-h tab`, `tab create --workspace $HERDR_WORKSPACE_ID --cwd <cwd> --no-focus` replaces the split, and for `-h workspace`, `workspace create --cwd <cwd> --no-focus`; both return the new root pane, where the same `agent start` runs. The row and start notice name the selected place (`herdr pane`, `herdr tab`, or `herdr workspace`) followed by its root pane id. The agent name is `side-` plus the first 13 characters of the child's session id, which hold a v7 id's complete millisecond timestamp, so names stay unique among live agents. Every command runs with the caller's environment, so `--current` resolves the pane this Pi lives in; both actions are available only under `HERDR_ENV=1`, and the widget hint hides otherwise.
 
 Both paths hand the pane's Pi the parent's launch extension options (see [Child extensions](#child-extensions)), then `forwardedArgsForPane(...)`, the dispatch's forwarded tokens minus two groups: the *inert* options (`role: "inert"` in the option table — the session, approval, offline, and API-key families), which a background run ignores but a real `pi` process would obey (`--no-session` would run the pane ephemeral, `--fork` would open another file), and `--model`, `--provider`, `--thinking`, which the pane's Pi gets explicitly or from its file.
 

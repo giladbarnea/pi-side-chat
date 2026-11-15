@@ -1587,7 +1587,9 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 					message: "Started /side in herdr pane w1:p2",
 					level: "info",
 				});
-				expect(widgetComponent().render(140).join("\n")).toContain("herdr pane w1:p2");
+				const row = widgetComponent().render(140).join("\n");
+				expect(row).toContain("· herdr pane w1:p2");
+				expect(row).toContain("runs in herdr pane w1:p2");
 			} finally {
 				fake.restore();
 			}
@@ -1646,11 +1648,11 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 		return { notifications, row: widgetComponent().render(140).join("\n") };
 	}
 
-	test("-h tab opens a tab in the caller's workspace and starts pi in its root pane, told it sits in a herdr tab", async () => {
+	test.each(["-h", "--herdr"])("%s tab opens a tab in the caller's workspace and starts pi in its root pane, told it sits in a herdr tab", async (option) => {
 		await withTemporaryAgentDir(async (cwd) => {
 			const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w1:p5" });
 			try {
-				const { notifications, row } = await dispatchInto(cwd, "-h tab audit the migration", (run) =>
+				const { notifications, row } = await dispatchInto(cwd, `${option} tab audit the migration`, (run) =>
 					insideFakeHerdrPane("w1:p1", run),
 				);
 				expect(fake.calls[0]).toEqual(["tab", "create", "--workspace", "w1", "--cwd", cwd, "--no-focus"]);
@@ -1660,19 +1662,23 @@ describe("handleAgentCommand -h — an agent born in a herdr pane", () => {
 					"You are running in a forked session now, in a herdr tab apart from the main session. The user may talk to you here. audit the migration",
 				);
 				expect(fake.calls).toHaveLength(2);
-				expect(notifications.at(-1)).toEqual({ message: "Started /side in herdr pane w1:p5", level: "info" });
-				expect(row).toContain("herdr pane w1:p5");
+				expect(row, "The tab's real started-row header must name its selected place (#26)").toContain("· herdr tab w1:p5");
+				expect(row, "The tab's activity placeholder must name its selected place (#26)").toContain("runs in herdr tab w1:p5");
+				expect(notifications.at(-1)).toEqual({ message: "Started /side in herdr tab w1:p5", level: "info" });
 			} finally {
 				fake.restore();
 			}
 		});
 	});
 
-	test("-h workspace opens a workspace and starts pi in its root pane, told it sits in a herdr workspace", async () => {
+	test.each(["-h", "--herdr"])("%s workspace opens a workspace and starts pi in its root pane, told it sits in a herdr workspace", async (option) => {
 		await withTemporaryAgentDir(async (cwd) => {
 			const fake = fakeHerdr({ layout: { paneId: "w1:p1", width: 120, height: 40 }, paneId: "w2:p1" });
 			try {
-				await dispatchInto(cwd, "-h workspace audit the migration", (run) => insideFakeHerdrPane("w1:p1", run));
+				const { notifications, row } = await dispatchInto(cwd, `${option} workspace audit the migration`, (run) => insideFakeHerdrPane("w1:p1", run));
+				expect(row, "The workspace's real started-row header must name its selected place (#26)").toContain("· herdr workspace w2:p1");
+				expect(row, "The workspace's activity placeholder must name its selected place (#26)").toContain("runs in herdr workspace w2:p1");
+				expect(notifications.at(-1)).toEqual({ message: "Started /side in herdr workspace w2:p1", level: "info" });
 				expect(fake.calls[0]).toEqual(["workspace", "create", "--cwd", cwd, "--no-focus"]);
 				expect(fake.calls[1]?.slice(5, 7)).toEqual(["--pane", "w2:p1"]);
 				expect(fake.calls[1]?.at(-1)).toBe(

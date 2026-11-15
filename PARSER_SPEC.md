@@ -1,3 +1,7 @@
+---
+last_updated: 2026-11-15T18-43
+---
+
 # `/side` command-line parser — specification
 
 This is the authoritative spec for how the shared command-line engine interprets
@@ -199,11 +203,13 @@ recognition and arity come from the shared declaration.
 
 ## 10. Pre-submit cursor analysis and eager autocomplete
 
-Cursor analysis recognizes only exact `/side` command lines. A place word right after `-h`
-is skipped, so option completion continues after it; places are not offered as completions. It
-preserves the active token's source span and reports either an option fragment, a value
-fragment with its owning declaration, or no completion once parsing has entered terminal
-prose. Quoted and backslash-escaped dashes therefore never reopen option completion.
+Cursor analysis recognizes only exact `/side` command lines. Both `-h` and `--herdr` show
+`[pane|tab|workspace]` in the option menu. Accepting either opens those choices with `pane`
+selected. The place stays optional: the next option or task can follow without a place value.
+A typed place prefix completes from the same choices, and option completion continues after
+a complete place. Cursor analysis preserves the active token's source span and reports an
+option fragment, a value fragment with its owning declaration, or no completion once parsing
+has entered terminal prose. Quoted and backslash-escaped dashes never reopen option completion.
 
 Typing `-` at a valid option position explicitly opens the menu without Tab. A single `-`
 may match short and long spellings; `--` matches long spellings only. Every alias is shown as
@@ -213,6 +219,7 @@ recommended.
 
 The finite value domains implemented today are:
 
+- optional Herdr places from the option declaration, in pane/tab/workspace order;
 - thinking levels from the fixed Pi level set;
 - unique providers from the live model registry;
 - live canonical `provider/id` model references, filtered by a preceding `--provider` for

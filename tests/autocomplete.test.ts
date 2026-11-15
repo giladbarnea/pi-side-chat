@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseAgentCommand } from "../command-line.ts";
 import { createEditorHarness } from "./editor-harness.ts";
 
 describe("agent command editor autocomplete", () => {
@@ -47,6 +48,89 @@ describe("agent command editor autocomplete", () => {
 			`Expected the settled menu to contain model completion.\nRendered editor:\n${rendered}`,
 		);
 	});
+
+	for (const option of ["-h", "--herdr"]) {
+		test(`${option} shows its optional places in the option menu (#25)`, async () => {
+			const harness = await createEditorHarness();
+			harness.type(`/side ${option}`);
+			await harness.waitForRender((rendered) => rendered.includes("Open the side chat"));
+			assert.ok(
+				harness.render().includes(`${option} [pane|tab|workspace]`),
+				`Expected ${option} to show optional places.\nRendered editor:\n${harness.render()}`,
+			);
+		});
+
+		for (const [key, data] of [["Tab", "\t"], ["Enter", "\r"]]) {
+			test(`${key} accepts ${option} and opens its places with pane selected (#25)`, async () => {
+				const harness = await createEditorHarness();
+				const submitted: string[] = [];
+				harness.editor.onSubmit = (text) => submitted.push(text);
+				harness.type(`/side ${option}`);
+				await harness.waitForRender((rendered) => rendered.includes("Open the side chat"));
+				harness.press(data);
+				assert.equal(harness.editor.getText(), `/side ${option} `);
+				await harness.waitForRender((rendered) => /→\s+pane\s*\n\s+tab\s*\n\s+workspace/.test(rendered));
+				harness.press(data);
+				assert.equal(harness.editor.getText(), `/side ${option} pane `);
+				assert.equal(harness.editor.getCursor().col, `/side ${option} pane `.length);
+				assert.deepEqual(submitted, [], "Accepting an option and its default must not submit");
+				await harness.waitForAutocompleteToRemainHidden();
+			});
+		}
+
+		test(`Tab on a hidden unique ${option} result also chains the place menu (#25)`, async () => {
+			const harness = await createEditorHarness();
+			harness.editor.setText(`/side ${option}`);
+			assert.equal(harness.editor.isShowingAutocomplete(), false);
+			harness.press("\t");
+			await harness.waitForRender((rendered) => /→\s+pane\s*\n\s+tab\s*\n\s+workspace/.test(rendered));
+			assert.equal(harness.editor.getText(), `/side ${option} `);
+		});
+
+		for (const [place, downPresses] of [["pane", 0], ["tab", 1], ["workspace", 2]] as const) {
+			test(`${option} accepts ${place} before an existing task without replacing the task (#25)`, async () => {
+				const harness = await createEditorHarness();
+				const suffix = " audit the migration";
+				harness.type(`/side ${option}${suffix}`);
+				harness.moveCursorLeft(suffix.length);
+				harness.press("\t");
+				await harness.waitForRender((rendered) => /→\s+pane\s*\n\s+tab\s*\n\s+workspace/.test(rendered));
+				for (let step = 0; step < downPresses; step += 1) harness.press("\x1b[B");
+				harness.press("\r");
+				assert.equal(harness.editor.getText(), `/side ${option} ${place}${suffix}`);
+				assert.equal(harness.editor.getCursor().col, `/side ${option} ${place} `.length);
+				assert.equal(parseAgentCommand(harness.editor.getText().slice(6), "side").place, `herdr ${place}`);
+				await harness.waitForAutocompleteToRemainHidden();
+			});
+		}
+
+		test(`${option} can skip its place and submit a task with the pane default (#25)`, async () => {
+			const harness = await createEditorHarness();
+			const submitted: string[] = [];
+			harness.editor.onSubmit = (text) => submitted.push(text);
+			harness.type(`/side ${option}`);
+			await harness.waitForRender((rendered) => rendered.includes("Open the side chat"));
+			harness.press("\t");
+			await harness.waitForRender((rendered) => /→\s+pane\s*\n\s+tab\s*\n\s+workspace/.test(rendered));
+			harness.press("\x1b");
+			harness.type("-i audit the migration");
+			await harness.waitForAutocompleteToRemainHidden();
+			harness.press("\r");
+			assert.deepEqual(submitted, [`/side ${option} -i audit the migration`]);
+			assert.equal(parseAgentCommand(submitted[0]!.slice(6), "side").place, "herdr pane");
+			assert.equal(parseAgentCommand(submitted[0]!.slice(6), "side").isolate, true);
+		});
+
+		test(`${option} filters a typed place prefix without reopening after prose (#25)`, async () => {
+			const harness = await createEditorHarness();
+			harness.type(`/side ${option} wo`);
+			harness.press("\t");
+			await harness.waitForRender((rendered) => rendered.includes(`/side ${option} workspace `));
+			harness.type("audit -");
+			await harness.waitForAutocompleteToRemainHidden();
+			assert.equal(harness.editor.getText(), `/side ${option} workspace audit -`);
+		});
+	}
 
 	test("offers and accepts both squash option spellings", async () => {
 		for (const squashOption of ["-s", "--squash"]) {
