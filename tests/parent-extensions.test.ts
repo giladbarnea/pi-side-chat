@@ -29,7 +29,7 @@ export default function (pi) {
 		models: [{ id: "${name}-model", name: "${name} model", reasoning: false, input: ["text"],
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 100000, maxTokens: 1000 }],
 		streamSimple: (model, context) => {
-			const tools = (context.tools ?? ai.getCurrentTools(context.messages)).map((tool) => tool.name);
+			const tools = ai.getCurrentTools(context.messages).map((tool) => tool.name);
 			const hooks = JSON.stringify(context.messages).match(/hook-ran:[a-z]+/g) ?? [];
 			const message = { role: "assistant", content: [{ type: "text", text: JSON.stringify({ tools, hooks }) }],
 				api: model.api, provider: model.provider, model: model.id, stopReason: "stop", timestamp: Date.now(),
