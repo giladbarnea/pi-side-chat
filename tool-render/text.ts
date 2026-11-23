@@ -26,11 +26,11 @@ export function lineCount(text: string): number {
 	return normalized ? normalized.split("\n").length : 0;
 }
 
+/** Every text block of a result, joined by newlines as Pi's own tool view joins them. */
 export function textContent(result: ToolResultLike | undefined): string {
-	const part = result?.content?.find(
-		(candidate) => candidate?.type === "text" && typeof candidate.text === "string",
-	);
-	return part?.text ?? "";
+	return (result?.content ?? [])
+		.flatMap((part) => (part?.type === "text" && typeof part.text === "string" ? [part.text] : []))
+		.join("\n");
 }
 
 /** @example truncateText("abcdef", 4) // "abc…" */

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import type { Component, TUI } from "@earendil-works/pi-tui";
 import { renderActivity } from "../agent-viewer.ts";
@@ -45,6 +46,18 @@ function transcriptRows(frame: string[]): string[] {
 	if (first === undefined || last === undefined || last <= first)
 		throw new Error("Overlay frame did not contain the expected header and footer rules");
 	return rows.slice(first + 1, last).filter((row) => row.length > 0);
+}
+
+/** The same transcript rows as `transcriptRows`, but byte for byte: escapes and border kept. */
+function rawTranscriptRows(frame: string[]): string[] {
+	const framed = frame.filter((line) => plain(line).startsWith("│"));
+	const inner = (line: string) => plain(line).slice(2, -2).trimEnd();
+	const ruleIndices = framed.flatMap((line, index) => (RULE_ROW_PATTERN.test(inner(line)) ? [index] : []));
+	const first = ruleIndices.at(0);
+	const last = ruleIndices.at(-1);
+	if (first === undefined || last === undefined || last <= first)
+		throw new Error("Overlay frame did not contain the expected header and footer rules");
+	return framed.slice(first + 1, last).filter((line) => inner(line).length > 0);
 }
 
 function identityTheme(): Theme {
@@ -102,6 +115,8 @@ type Harness = {
 	rows: (width?: number) => string[];
 	/** Transcript rows joined, ANSI and overlay chrome removed. */
 	text: (width?: number) => string;
+	/** Transcript rows exactly as drawn, escapes and border included. */
+	rawRows: (width?: number) => string[];
 	/** The whole overlay frame, ANSI removed, for layout assertions. */
 	frame: (width?: number) => string[];
 	/** The widget rows under the editor, ANSI removed. */
@@ -205,6 +220,7 @@ function buildHarness(
 	return {
 		rows: (width = 100) => transcriptRows(openViewer().render(width)),
 		text: (width = 100) => transcriptRows(openViewer().render(width)).join("\n"),
+		rawRows: (width = 100) => rawTranscriptRows(openViewer().render(width)),
 		frame: (width = 100) => openViewer().render(width).map(plain),
 		widgetText: (width = 120) => {
 			if (!widgetComponent) throw new Error("Widget did not render");
@@ -552,6 +568,91 @@ describe("overlay tool rendering — unknown tools degrade gracefully", () => {
 
 		expect(() => harness.text(64)).not.toThrow();
 		expect(harness.text(64)).toContain("weird_tool");
+	});
+});
+
+/** A Code Mode result as Pi 1.5.2 stores it: the script header, then the script's own output. */
+function codemodeResult(output: string, isError: boolean): AgentMessage {
+	const status = isError ? "Script failed" : "Script completed";
+	return multiBlockResult("codemode", [`${status}\nWall time 0.1 seconds\nOutput:\n`, output], isError);
+}
+
+function multiBlockResult(toolName: string, texts: string[], isError: boolean): AgentMessage {
+	return {
+		role: "toolResult",
+		toolCallId: "c",
+		toolName,
+		content: texts.map((text) => ({ type: "text", text })),
+		isError,
+		timestamp: 2,
+	} as unknown as AgentMessage;
+}
+
+/** Distinct, environment-independent SGR codes per theme colour, so styling differences are visible bytes. */
+function escapeTheme(): Theme {
+	const code = (color: string) => [...color].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 216, 7) + 16;
+	return {
+		fg: (color: string, text: string) => `\x1b[38;5;${code(color)}m${text}\x1b[39m`,
+		bg: (color: string, text: string) => `\x1b[48;5;${code(color)}m${text}\x1b[49m`,
+		bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+		italic: (text: string) => `\x1b[3m${text}\x1b[23m`,
+		underline: (text: string) => `\x1b[4m${text}\x1b[24m`,
+		inverse: (text: string) => `\x1b[7m${text}\x1b[27m`,
+		strikethrough: (text: string) => `\x1b[9m${text}\x1b[29m`,
+	} as unknown as Theme;
+}
+
+describe("overlay tool rendering — results stored in several text blocks", () => {
+	const codemodeCall = assistantCalls({ id: "c", name: "codemode", arguments: { code: "text(1)" } });
+
+	test("a Code Mode script's printed output shows, not just its header", () => {
+		const rendered = buildHarness([
+			codemodeCall,
+			codemodeResult("==> text 1/2 <==\nmarker_42\n==> text 2/2 <==\nmarker_43", false),
+		]).text();
+
+		expect(rendered).toContain("marker_42");
+		expect(rendered).toContain("marker_43");
+	});
+});
+
+/**
+ * Failed generic-tool results, drawn byte for byte as the overlay drew them at 261bfe09
+ * (`tests/fixtures/failure-preview-261bfe09.json`, recorded by running this block on that commit).
+ * The failure preview is unchanged by design; its redesign is tracked separately.
+ */
+describe("overlay tool rendering — failure previews are unchanged from 261bfe09", () => {
+	const recorded: Record<string, string[]> = JSON.parse(
+		readFileSync(new URL("./fixtures/failure-preview-261bfe09.json", import.meta.url), "utf8"),
+	);
+	const progress = Array.from({ length: 12 }, (_, index) => `==> text ${index + 1}/12 <==\nprogress ${index}`).join("\n");
+	const fixtures: Record<string, AgentMessage> = {
+		"codemode error": codemodeResult(
+			"Script error:\nError: broken_48\n    at <anonymous> (codemode.js:1:56)\n\nNo tool calls were made.",
+			true,
+		),
+		"codemode progress then error": codemodeResult(
+			`${progress}\n\nScript error:\nError: broken_48\n    at <anonymous> (codemode.js:1:200)\n\nNo tool calls were made.`,
+			true,
+		),
+		"codemode header only": multiBlockResult("codemode", ["Script failed\nWall time 0.1 seconds\n"], true),
+		"empty first block": multiBlockResult("mcp__linear__list_issues", ["", "Error: unauthorized\nretry later"], true),
+		"multi-line single block": multiBlockResult(
+			"mcp__linear__list_issues",
+			["Error: unauthorized\n  token expired\n  re-run login"],
+			true,
+		),
+		"no text": multiBlockResult("deploy_service", [], true),
+	};
+
+	test.each(Object.keys(fixtures))("%s", (name) => {
+		const toolName = (fixtures[name] as unknown as { toolName: string }).toolName;
+		const actual = buildHarness(
+			[assistantCalls({ id: "c", name: toolName, arguments: { code: "text(1)" } }), fixtures[name]!],
+			{ theme: escapeTheme() },
+		).rawRows();
+
+		expect(actual).toEqual(recorded[name]!);
 	});
 });
 

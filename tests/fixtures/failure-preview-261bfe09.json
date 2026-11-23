@@ -1,0 +1,20 @@
+{
+	"codemode error": [
+		"\u001b[38;5;91m│\u001b[39m \u001b[38;5;57m● \u001b[39m\u001b[38;5;212m\u001b[1mcodemode \u001b[22m\u001b[39m\u001b[38;5;57mcode=text(1)\u001b[39m\u001b[38;5;217m · \u001b[39m\u001b[38;5;193mScript failed\u001b[39m                                                          \u001b[38;5;91m│\u001b[39m"
+	],
+	"codemode progress then error": [
+		"\u001b[38;5;91m│\u001b[39m \u001b[38;5;57m● \u001b[39m\u001b[38;5;212m\u001b[1mcodemode \u001b[22m\u001b[39m\u001b[38;5;57mcode=text(1)\u001b[39m\u001b[38;5;217m · \u001b[39m\u001b[38;5;193mScript failed\u001b[39m                                                          \u001b[38;5;91m│\u001b[39m"
+	],
+	"codemode header only": [
+		"\u001b[38;5;91m│\u001b[39m \u001b[38;5;57m● \u001b[39m\u001b[38;5;212m\u001b[1mcodemode \u001b[22m\u001b[39m\u001b[38;5;57mcode=text(1)\u001b[39m\u001b[38;5;217m · \u001b[39m\u001b[38;5;193mScript failed\u001b[39m                                                          \u001b[38;5;91m│\u001b[39m"
+	],
+	"empty first block": [
+		"\u001b[38;5;91m│\u001b[39m \u001b[38;5;57m● \u001b[39m\u001b[38;5;212m\u001b[1mmcp__linear__list_issues \u001b[22m\u001b[39m\u001b[38;5;57mcode=text(1)\u001b[39m\u001b[38;5;217m · \u001b[39m\u001b[38;5;193mmcp__linear__list_issues failed\u001b[39m                        \u001b[38;5;91m│\u001b[39m"
+	],
+	"multi-line single block": [
+		"\u001b[38;5;91m│\u001b[39m \u001b[38;5;57m● \u001b[39m\u001b[38;5;212m\u001b[1mmcp__linear__list_issues \u001b[22m\u001b[39m\u001b[38;5;57mcode=text(1)\u001b[39m\u001b[38;5;217m · \u001b[39m\u001b[38;5;193mError: unauthorized\u001b[39m                                    \u001b[38;5;91m│\u001b[39m"
+	],
+	"no text": [
+		"\u001b[38;5;91m│\u001b[39m \u001b[38;5;57m● \u001b[39m\u001b[38;5;212m\u001b[1mdeploy_service \u001b[22m\u001b[39m\u001b[38;5;57mcode=text(1)\u001b[39m\u001b[38;5;217m · \u001b[39m\u001b[38;5;193mdeploy_service failed\u001b[39m                                            \u001b[38;5;91m│\u001b[39m"
+	]
+}

@@ -9,7 +9,10 @@ import {
 	estimateTokens,
 	createAgentSessionFromServices,
 	createAgentSessionServices,
+	createCodemodeExtension,
+	createMcpExtension,
 	getAgentDir,
+	type InlineExtension,
 	type ModelRuntime,
 	parseArgs,
 	resolveCliModel,
@@ -389,6 +392,7 @@ export type ChildResourceLoaderOptions = {
 	noPromptTemplates?: boolean;
 	noThemes?: boolean;
 	noContextFiles?: boolean;
+	disabledBuiltinExtensions?: string[];
 };
 
 export type ChildToolOptions = {
@@ -401,6 +405,16 @@ type ForwardedOptions = ChildToolOptions & {
 	model?: Model;
 	thinkingLevel?: ThinkingLevel;
 };
+
+/**
+ * Code Mode and MCP as Pi's CLI registers them: replaceable built-ins, so the `extensions` setting,
+ * `--no-mcp`, a replacing extension, and the tool options decide whether a child gets them, exactly
+ * as in the CLI. MCP reads `mcp.json` from the agent directory and the trusted project, as the CLI does.
+ */
+const BUILTIN_EXTENSIONS: InlineExtension[] = [
+	{ name: "codemode", factory: createCodemodeExtension(), replaceable: true, builtin: true },
+	{ name: "mcp", factory: createMcpExtension(), replaceable: true, builtin: true },
+];
 
 /**
  * The cwd-bound services for one child session; the parent's ModelRuntime rides along (see INTERNALS).
@@ -420,7 +434,10 @@ export function createChildServices(
 		agentDir,
 		settingsManager,
 		modelRuntime: parentModelRuntime(ctx),
-		resourceLoaderOptions: buildChildResourceLoaderOptions(resourceArgs, ctx.cwd),
+		resourceLoaderOptions: {
+			...buildChildResourceLoaderOptions(resourceArgs, ctx.cwd),
+			extensionFactories: BUILTIN_EXTENSIONS,
+		},
 	});
 }
 
@@ -429,6 +446,7 @@ export function createChildServices(
  * settings, so a child that loads extensions from settings alone misses the parent's `-e` extensions.
  *
  * @example parentExtensionArgs(["--mode", "rpc", "-ne", "-e", "./a.ts", "-e", "npm:b", "hi"], "/work") // ["--no-extensions", "--extension", "/work/a.ts", "--extension", "npm:b"]
+ * @example parentExtensionArgs(["--no-mcp"], "/work") // ["--no-mcp"]
  */
 export function parentExtensionArgs(
 	launchArgs: readonly string[] = process.argv.slice(2),
@@ -439,7 +457,11 @@ export function parentExtensionArgs(
 		"--extension",
 		source,
 	]);
-	return launch.noExtensions ? ["--no-extensions", ...extensions] : extensions;
+	return [
+		...(launch.noExtensions ? ["--no-extensions"] : []),
+		...(launch.noMcp ? ["--no-mcp"] : []),
+		...extensions,
+	];
 }
 
 /**
@@ -583,6 +605,7 @@ export function buildChildResourceLoaderOptions(
 	if (parsed.noPromptTemplates) options.noPromptTemplates = true;
 	if (parsed.noThemes) options.noThemes = true;
 	if (parsed.noContextFiles) options.noContextFiles = true;
+	if (parsed.noMcp) options.disabledBuiltinExtensions = ["mcp"];
 	return Object.keys(options).length > 0 ? options : undefined;
 }
 
